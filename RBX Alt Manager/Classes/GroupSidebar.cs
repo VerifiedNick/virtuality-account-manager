@@ -14,6 +14,7 @@ namespace RBX_Alt_Manager.Classes
         public string Key;   // group key as stored on the accounts, null for "All accounts"
         public string Title;
         public int Count;
+        public int Banned;
     }
 
     public class GroupSidebarEventArgs : EventArgs
@@ -45,11 +46,11 @@ namespace RBX_Alt_Manager.Classes
         private Font TitleFont, CountFont, InitialsFont;
         private float FontScale = -1;
 
-        private static readonly Color Accent = Color.FromArgb(0, 150, 215);
+        private static Color Accent => Modern.Accent;
 
         private float S => Program.Scale;
         private int ItemHeight => (int)(52 * S);
-        private int Gap => (int)(4 * S);
+        private int Gap => (int)(2 * S);
         private int Pad => (int)(6 * S);
 
         public GroupSidebar()
@@ -86,9 +87,9 @@ namespace RBX_Alt_Manager.Classes
 
             TitleFont?.Dispose(); CountFont?.Dispose(); InitialsFont?.Dispose();
 
-            TitleFont = new Font("Segoe UI Semibold", 9f * S);
+            TitleFont = new Font("Segoe UI Semibold", 9.25f * S);
             CountFont = new Font("Segoe UI", 8.25f * S);
-            InitialsFont = new Font("Segoe UI Semibold", 10f * S);
+            InitialsFont = new Font("Segoe UI Semibold", 9f * S);
             FontScale = S;
         }
 
@@ -156,12 +157,9 @@ namespace RBX_Alt_Manager.Classes
             EnsureFonts();
 
             Graphics G = e.Graphics;
-            G.SmoothingMode = SmoothingMode.AntiAlias;
-            G.InterpolationMode = InterpolationMode.HighQualityBicubic;
-            G.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+            Modern.Prepare(G);
 
-            Color Back = ThemeEditor.AccountBackground;
-            Color Fore = ThemeEditor.AccountForeground;
+            Color Back = BackColor;
 
             G.Clear(Back);
 
@@ -173,27 +171,38 @@ namespace RBX_Alt_Manager.Classes
 
                 var Item = Items[i];
                 bool Active = HasActive && Item.Key == ActiveKey;
-                Color Card = Active ? Blend(Back, Accent, 0.28f) : (i == HoverIndex ? Blend(Back, Fore, 0.12f) : Blend(Back, Fore, 0.05f));
+                Color Card = Active ? Modern.Selected : (i == HoverIndex ? Modern.Hover : Back);
 
-                using (var Path = Rounded(R, 7 * S))
-                using (var Brush = new SolidBrush(Card))
-                    G.FillPath(Brush, Path);
+                Modern.Box(G, R, Card, Active ? Modern.FieldBorder : (Color?)null);
 
                 if (Active)
                     using (var Bar = new SolidBrush(Accent))
-                        G.FillRectangle(Bar, R.X, R.Y + (int)(8 * S), (int)(3 * S), R.Height - (int)(16 * S));
+                        G.FillRectangle(Bar, R.X, R.Y, (int)(3 * S), R.Height);
 
-                int IconSize = R.Height - (int)(10 * S);
-                Rectangle IconR = new Rectangle(R.X + (int)(8 * S), R.Y + (R.Height - IconSize) / 2, IconSize, IconSize);
+                int IconSize = R.Height - (int)(14 * S);
+                Rectangle IconR = new Rectangle(R.X + (int)(10 * S), R.Y + (R.Height - IconSize) / 2, IconSize, IconSize);
 
                 DrawIcon(G, Item, IconR);
 
-                int TextX = IconR.Right + (int)(8 * S);
-                var TitleR = new Rectangle(TextX, R.Y + (int)(7 * S), R.Right - TextX - (int)(6 * S), (int)(20 * S));
-                var CountR = new Rectangle(TextX, TitleR.Bottom, TitleR.Width, (int)(18 * S));
+                int BadgeW = 0;
 
-                TextRenderer.DrawText(G, Item.Title, TitleFont, TitleR, Fore, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
-                TextRenderer.DrawText(G, Item.Count == 1 ? "1 account" : $"{Item.Count} accounts", CountFont, CountR, Blend(Fore, Back, 0.4f), TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
+                if (Item.Banned > 0)
+                {
+                    string Badge = $"{Item.Banned} banned";
+                    BadgeW = TextRenderer.MeasureText(Badge, CountFont, Size.Empty, TextFormatFlags.NoPadding).Width + (int)(10 * S);
+                    var BR = new Rectangle(R.Right - BadgeW - (int)(8 * S), R.Y + (R.Height - (int)(18 * S)) / 2, BadgeW, (int)(18 * S));
+
+                    Modern.Box(G, BR, Modern.DangerBg, Modern.DangerLine);
+                    TextRenderer.DrawText(G, Badge, CountFont, BR, Modern.Danger, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding);
+                    BadgeW += (int)(8 * S);
+                }
+
+                int TextX = IconR.Right + (int)(10 * S);
+                var TitleR = new Rectangle(TextX, R.Y + (int)(7 * S), R.Right - TextX - (int)(6 * S) - BadgeW, (int)(20 * S));
+                var CountR = new Rectangle(TextX, TitleR.Bottom, TitleR.Width, (int)(17 * S));
+
+                TextRenderer.DrawText(G, Item.Title, TitleFont, TitleR, Active ? Modern.Text : Modern.Text2, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+                TextRenderer.DrawText(G, Item.Count == 1 ? "1 account" : $"{Item.Count} accounts", CountFont, CountR, Modern.Sub, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
             }
         }
 
@@ -205,45 +214,30 @@ namespace RBX_Alt_Manager.Classes
             if (Item.Key != null)
                 Picture = GroupImages.GetImage(Item.Key, out Info);
 
-            using (var Path = Rounded(R, 6 * S))
+            Modern.Box(G, R, Modern.Field, Modern.FieldBorder);
+
+            if (Picture != null)
             {
-                if (Picture != null)
+                var Old = G.SmoothingMode;
+                G.SmoothingMode = SmoothingMode.AntiAlias;
+                G.DrawImage(Picture, Rectangle.Inflate(R, -(int)(2 * S), -(int)(2 * S)));
+                G.SmoothingMode = Old;
+
+                if (Info?.Variant == EntryVariant.Rainbow || Info?.Variant == EntryVariant.Golden)
                 {
-                    using (var Bg = new SolidBrush(Blend(ThemeEditor.AccountBackground, ThemeEditor.AccountForeground, 0.1f)))
-                        G.FillPath(Bg, Path);
+                    Color Mark = Info.Variant == EntryVariant.Golden ? Color.FromArgb(220, 180, 60) : Color.FromArgb(200, 200, 200);
+                    string Letter = Info.Variant == EntryVariant.Golden ? "G" : "R";
+                    var MR = new Rectangle(R.Right - (int)(13 * S), R.Bottom - (int)(13 * S), (int)(13 * S), (int)(13 * S));
 
-                    var Old = G.Clip;
-                    G.SetClip(Path);
-                    G.DrawImage(Picture, R);
-                    G.Clip = Old;
-
-                    if (Info?.Variant == EntryVariant.Rainbow)
-                        using (var Ring = new LinearGradientBrush(R, Color.Red, Color.Violet, 45f))
-                        {
-                            Ring.InterpolationColors = new ColorBlend
-                            {
-                                Colors = new[] { Color.FromArgb(255, 80, 80), Color.FromArgb(255, 200, 60), Color.FromArgb(80, 220, 120), Color.FromArgb(70, 160, 255), Color.FromArgb(190, 90, 255) },
-                                Positions = new[] { 0f, 0.25f, 0.5f, 0.75f, 1f }
-                            };
-
-                            using (var Pen = new Pen(Ring, 2.5f * S))
-                                G.DrawPath(Pen, Path);
-                        }
-                    else if (Info?.Variant == EntryVariant.Golden)
-                        using (var Pen = new Pen(Color.FromArgb(240, 190, 50), 2f * S))
-                            G.DrawPath(Pen, Path);
+                    Modern.Box(G, MR, Color.Black, Mark);
+                    TextRenderer.DrawText(G, Letter, Modern.Font(6f, FontStyle.Regular, true), MR, Mark, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
                 }
-                else
-                {
-                    Color C = Item.Key == null ? Accent : ColorFor(Item.Title);
+            }
+            else
+            {
+                string Text = Item.Key == null ? "ALL" : Initials(Item.Title);
 
-                    using (var Brush = new SolidBrush(C))
-                        G.FillPath(Brush, Path);
-
-                    string Text = Item.Key == null ? "ALL" : Initials(Item.Title);
-
-                    TextRenderer.DrawText(G, Text, InitialsFont, R, Color.White, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding);
-                }
+                TextRenderer.DrawText(G, Text, InitialsFont, R, Item.Key == null ? Modern.Accent : Modern.Text2, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding);
             }
         }
 

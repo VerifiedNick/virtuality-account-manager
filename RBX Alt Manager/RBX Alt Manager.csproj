@@ -390,6 +390,14 @@
       <SubType>Component</SubType>
     </Compile>
     <Compile Include="Classes\GroupImages.cs" />
+    <Compile Include="Classes\ModernUI.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Classes\AccountRowRenderer.cs" />
+    <Compile Include="Classes\AccountChecks.cs" />
+    <Compile Include="Classes\AccountCardPanel.cs">
+      <SubType>Component</SubType>
+    </Compile>
     <Compile Include="Classes\GroupSidebar.cs">
       <SubType>Component</SubType>
     </Compile>
@@ -468,6 +476,10 @@
       <DependentUpon>AccountFields.cs</DependentUpon>
     </Compile>
     <Compile Include="AccountManager.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="AccountManager.Modern.cs">
+      <DependentUpon>AccountManager.cs</DependentUpon>
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="AccountManager.Designer.cs">

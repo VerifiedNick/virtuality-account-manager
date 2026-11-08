@@ -383,15 +383,36 @@ namespace RBX_Alt_Manager.Classes
             Controls.Add(browser);
         }
 
-        public void Login()
+        private string FillUsername, FillPassword;
+
+        public void Login(string Username = null, string Password = null)
         {
             Cef.GetGlobalCookieManager().DeleteCookies();
             
             BrowserMode = false;
+            FillUsername = Username;
+            FillPassword = Password;
 
             browser.Load("https://roblox.com/login");
 
             Show();
+        }
+
+        private static string JsString(string Value) => Newtonsoft.Json.JsonConvert.ToString(Value ?? string.Empty);
+
+        /// <summary>Types the saved username/password into the Roblox login form (React needs the native setter + input event).</summary>
+        private void FillLoginForm()
+        {
+            if (string.IsNullOrEmpty(FillUsername) && string.IsNullOrEmpty(FillPassword)) return;
+
+            string Script = $@"(function(){{
+                var set=function(id,v){{var e=document.getElementById(id);if(!e||!v)return false;var s=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;s.call(e,v);e.dispatchEvent(new Event('input',{{bubbles:true}}));return true;}};
+                var tries=0;var t=setInterval(function(){{tries++;var a=set('login-username',{JsString(FillUsername)});var b=set('login-password',{JsString(FillPassword)});if((a||b)||tries>40)clearInterval(t);}},250);
+            }})();";
+
+            FillUsername = FillPassword = null;
+
+            browser.ExecuteScriptAsyncWhenPageLoaded(Script);
         }
 
         public void EnterBrowserMode(Account account, string URL = null)
@@ -467,6 +488,9 @@ namespace RBX_Alt_Manager.Classes
             });
 
             browser.ExecuteScriptAsyncWhenPageLoaded(@"document.body.classList.remove(""light-theme"");document.body.classList.add(""dark-theme"");");
+
+            if (args.Frame.IsMain && !BrowserMode && args.Url.Contains("/login"))
+                FillLoginForm();
         }
     }
 

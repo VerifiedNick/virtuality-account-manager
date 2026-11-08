@@ -86,7 +86,6 @@ namespace RBX_Alt_Manager
         public event EventHandler<GameArgs> RecentGameAdded;
 
         private GroupSidebar GroupsSidebar;
-        private const int SidebarWidth = 230;
 
         private bool IsResettingPassword;
         private bool IsDownloadingChromium;
@@ -168,10 +167,10 @@ namespace RBX_Alt_Manager
             if (!AccountControl.Exists("NexusPort")) AccountControl.Set("NexusPort", "5242");
 
             InitializeComponent();
-            SetupModernLayout();
+            BuildModernShell();
             this.Rescale();
 
-            AccountsView.RowHeight = (int)(24 * Program.Scale);
+            AccountsView.RowHeight = (int)(46 * Program.Scale);
 
             AccountsList = new List<Account>();
             SelectedAccounts = new List<Account>();
@@ -214,7 +213,9 @@ namespace RBX_Alt_Manager
             AccountsView.GroupWithItemCountFormat = "{0}   ·   {1} accounts";
             AccountsView.GroupWithItemCountSingularFormat = "{0}   ·   {1} account";
 
-            AccountsView.AfterCreatingGroups += (s, e) => UpdateGroupSidebar(e.Groups);
+            AccountsView.AfterCreatingGroups += (s, e) => UpdateGroupSidebar();
+
+            ApplyAccountFilter();
 
             var VCKey = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\WOW6432Node\Microsoft\VisualStudio\14.0\VC\Runtimes\X86");
 
@@ -258,68 +259,6 @@ namespace RBX_Alt_Manager
         private static extern IntPtr SendListViewMessage(IntPtr hWnd, int Msg, IntPtr wParam, IntPtr lParam);
 
         private const int LVM_SCROLL = 0x1014;
-
-        /// <summary>Makes room on the left for the group overview. Runs before Rescale(), so everything uses designer units.</summary>
-        private void SetupModernLayout()
-        {
-            int W = SidebarWidth;
-
-            ClientSize = new Size(ClientSize.Width + W, ClientSize.Height); // controls anchored to the right move with the window
-            MinimumSize = new Size(MinimumSize.Width + W, MinimumSize.Height);
-
-            foreach (Control control in Controls)
-            {
-                if (control == PasswordPanel) continue;
-
-                bool Left = control.Anchor.HasFlag(AnchorStyles.Left), Right = control.Anchor.HasFlag(AnchorStyles.Right);
-
-                if (Left && Right) { control.Left += W; control.Width -= W; }
-                else if (Left) control.Left += W;
-            }
-
-            GroupsSidebar = new GroupSidebar()
-            {
-                Name = "GroupsSidebar",
-                Location = new System.Drawing.Point(13, AccountsView.Top),
-                Size = new Size(W - 6, AccountsView.Height),
-                Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left,
-                TabIndex = 19
-            };
-
-            GroupsSidebar.GroupClicked += (s, e) => ScrollToGroup(e.Item.Key);
-            GroupsSidebar.GroupDoubleClicked += (s, e) => SelectGroup(e.Item.Key);
-            GroupsSidebar.GroupRightClicked += GroupsSidebar_GroupRightClicked;
-
-            Controls.Add(GroupsSidebar);
-            SaveTooltip.SetToolTip(GroupsSidebar, "Click: jump to group · Double click: select all accounts of the group · Right click: change picture");
-
-            AccountsView.Font = new Font("Segoe UI", 9.25f);
-            Username.Width = 150;
-        }
-
-        private void UpdateGroupSidebar(IList<OLVGroup> Groups)
-        {
-            if (GroupsSidebar == null || Groups == null) return;
-
-            var Items = new List<GroupSidebarItem>
-            {
-                new GroupSidebarItem() { Key = null, Title = "All accounts", Count = AccountsList?.Count ?? 0 }
-            };
-
-            foreach (OLVGroup group in Groups)
-            {
-                string Key = group.Key as string;
-
-                Items.Add(new GroupSidebarItem()
-                {
-                    Key = Key,
-                    Title = (Group.GroupKeyToTitleConverter?.Invoke(Key) ?? Key ?? string.Empty).Trim().TrimStart(':', '-', '.', ' '),
-                    Count = AccountsList?.Count(a => a.Group == Key) ?? 0
-                });
-            }
-
-            GroupsSidebar.SetGroups(Items);
-        }
 
         private void ScrollToGroup(string Key)
         {
@@ -420,7 +359,7 @@ namespace RBX_Alt_Manager
         {
             if (!IsHandleCreated || IsDisposed) return;
 
-            BeginInvoke((MethodInvoker)(() => GroupsSidebar?.Invalidate()));
+            BeginInvoke((MethodInvoker)(() => { GroupsSidebar?.Invalidate(); AccountCard?.Invalidate(); }));
         }
 
         #endregion
@@ -440,6 +379,8 @@ namespace RBX_Alt_Manager
                     AccountsView.RefreshObject(obj);
                     AccountsView.EnsureModelVisible(obj);
                 }
+
+                UpdateAccountCard();
             });
         }
 
@@ -766,8 +707,10 @@ namespace RBX_Alt_Manager
                     account = exists;
 
                     exists.SecurityToken = SecurityToken;
-                    exists.Password = Password;
+                    if (!string.IsNullOrEmpty(Password)) exists.Password = Password; // never wipe a saved password (e.g. cookie re-import)
                     exists.LastUse = DateTime.Now;
+
+                    if (exists.GetField("BanStatus") == "NeedsLogin") exists.Fields.Remove("BanStatus"); // fresh login
 
                     Instance.RefreshView(exists);
                 }
@@ -931,8 +874,7 @@ namespace RBX_Alt_Manager
                 });
             }
 
-            if (!General.Get<bool>("DisableAgingAlert"))
-                Username.Renderer = new AccountRenderer();
+            // the aging alert (last use > 20 days) is now shown in the LAST USED column
 
             try
             {
@@ -1048,6 +990,8 @@ namespace RBX_Alt_Manager
             }
 
             GroupsSidebar?.Invalidate();
+
+            ApplyModernStyle();
 
             afform.ApplyTheme();
             ServerListForm.ApplyTheme();
@@ -1458,7 +1402,7 @@ namespace RBX_Alt_Manager
             }
 
             if (AccountControl.Get<bool>("StartOnLaunch"))
-                LaunchNexus.PerformClick();
+                LaunchNexus_Click(null, EventArgs.Empty); // the old button lives hidden now, PerformClick would not fire
         }
 
         public bool UpdateMultiRoblox()
@@ -1781,11 +1725,8 @@ namespace RBX_Alt_Manager
         {
             General.Set("HideUsernames", HideUsernamesCheckbox.Checked ? "true" : "false");
 
-            AccountsView.BeginUpdate();
-
-            Username.Width = HideUsernamesCheckbox.Checked ? 0 : (int)(120 * Program.Scale);
-
-            AccountsView.EndUpdate();
+            AccountsView.Invalidate(); // the row renderer shows the alias instead of the name
+            AccountCard?.Invalidate();
         }
 
         private void removeAccountToolStripMenuItem_Click(object sender, EventArgs e)
@@ -1922,7 +1863,7 @@ namespace RBX_Alt_Manager
             foreach (Account account in AccountsView.SelectedObjects)
                 Passwords.Add($"{account.Password}");
 
-            Clipboard.SetText(string.Join("\n", Passwords));
+            CopyToClipboard(string.Join("\n", Passwords)); // cleared again after 30 s
         }
 
         private void copyUserPassComboToolStripMenuItem_Click(object sender, EventArgs e)
@@ -1932,7 +1873,7 @@ namespace RBX_Alt_Manager
             foreach (Account account in AccountsView.SelectedObjects)
                 Combos.Add($"{account.Username}:{account.Password}");
 
-            Clipboard.SetText(string.Join("\n", Combos));
+            CopyToClipboard(string.Join("\n", Combos)); // cleared again after 30 s
         }
 
         private void copyUserIdToolStripMenuItem_Click(object sender, EventArgs e)

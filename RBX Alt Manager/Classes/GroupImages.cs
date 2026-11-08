@@ -185,7 +185,25 @@ namespace RBX_Alt_Manager.Classes
         public static string GetOverride(string Group)
         {
             lock (OverridesLock)
-                return Overrides != null && Group != null && Overrides.TryGetValue(Group, out string Entry) ? Entry : null;
+            {
+                if (Overrides == null || Group == null) return null;
+                if (Overrides.TryGetValue(Group, out string Entry)) return Entry;
+
+                // "A: HSA" in GroupImages.json also matches "a:hsa" or "1 A: HSA" (RAM's number sort prefix)
+                string Wanted = NormalizeKey(Group);
+
+                foreach (var Pair in Overrides)
+                    if (NormalizeKey(Pair.Key) == Wanted) return Pair.Value;
+
+                return null;
+            }
+        }
+
+        private static string NormalizeKey(string Group)
+        {
+            string Key = Regex.Replace(Group ?? string.Empty, @"^\s*\d{1,3}\s+", string.Empty);
+
+            return Regex.Replace(Key, @"\s+", string.Empty).ToLowerInvariant();
         }
 
         public static void SetOverride(string Group, string EntryName)
@@ -197,7 +215,12 @@ namespace RBX_Alt_Manager.Classes
                 Overrides ??= new Dictionary<string, string>();
 
                 if (string.IsNullOrWhiteSpace(EntryName))
-                    Overrides.Remove(Group);
+                {
+                    string Wanted = NormalizeKey(Group);
+
+                    foreach (string Key in Overrides.Keys.Where(k => NormalizeKey(k) == Wanted).ToList())
+                        Overrides.Remove(Key);
+                }
                 else
                     Overrides[Group] = EntryName.Trim();
 
