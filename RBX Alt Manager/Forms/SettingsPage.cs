@@ -118,6 +118,9 @@ namespace RBX_Alt_Manager.Forms
 
             Refreshers.Add(() => Delay.Enabled = !General.Get<bool>("AsyncJoin"));
 
+            Toggle(S, "Ask before joining twice", "Only for the same account: if it is already in a game or was started in the last 2 minutes, you get a question first (joining again would close its open Roblox window). Different accounts in several windows are never affected.",
+                () => !General.Exists("ConfirmDoubleJoin") || General.Get<bool>("ConfirmDoubleJoin"), V => { General.Set("ConfirmDoubleJoin", Bool(V)); Save(); });
+
             Toggle(S, "Shuffle picks the emptiest server", "The shuffle button next to Job ID joins the server with the fewest players.",
                 () => General.Get<bool>("ShuffleChoosesLowestServer"), V => { General.Set("ShuffleChoosesLowestServer", Bool(V)); Save(); });
 

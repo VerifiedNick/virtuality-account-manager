@@ -682,6 +682,12 @@ namespace RBX_Alt_Manager
         {
             var Busy = new List<(Account A, string Why)>();
 
+            if (General.Exists("ConfirmDoubleJoin") && !General.Get<bool>("ConfirmDoubleJoin"))
+            {
+                foreach (var A in Accounts) MarkJoined(A);
+                return Accounts; // switched off in Settings → Joining
+            }
+
             foreach (var A in Accounts)
             {
                 DateTime When;
