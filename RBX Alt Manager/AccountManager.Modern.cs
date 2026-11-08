@@ -24,7 +24,10 @@ namespace RBX_Alt_Manager
         private FieldBox GameField, JobField, SearchField;
         private TextBox SearchBox;
         private ModernButton JoinSelectedButton, ServerListIcon, RecentGamesIcon, AccountControlIcon, SettingsIcon, SaveJobIcon;
-        private ModernButton AddAccountButton, CheckBansButton, SelectGroupButton;
+        private ModernButton AddAccountButton, CheckBansButton, SelectGroupButton, ViewToggleButton;
+        private AccountGrid Grid;
+        private bool CardView = true;
+        private readonly System.Windows.Forms.Timer CardPresenceTimer = new System.Windows.Forms.Timer() { Interval = 60000 };
         private ModernLabel GroupsCaption, GroupTitleLabel, GroupSubLabel, TipLabel;
         private AccountCardPanel AccountCard;
         private ContextMenuStrip MoreToolsMenu;
@@ -242,6 +245,12 @@ namespace RBX_Alt_Manager
             SelectGroupButton = new ModernButton() { Text = "Select group" };
             SelectGroupButton.Click += (s, e) => SelectAllVisible();
 
+            CardView = General == null || !General.Exists("MainView") || General.Get("MainView") != "List";
+
+            ViewToggleButton = new ModernButton() { Text = CardView ? "List view" : "Card view" };
+            ViewToggleButton.Click += (s, e) => SetCardView(!CardView);
+            SaveTooltip.SetToolTip(ViewToggleButton, "Switch between account cards and the classic list (the list supports drag & drop into groups)");
+
             ListFrame = new LinePanel() { BackColor = Modern.Bg, FillBorderColor = Modern.Line, Padding = new Padding(1) };
 
             Controls.Remove(AccountsView);
@@ -250,7 +259,22 @@ namespace RBX_Alt_Manager
             AccountsView.BorderStyle = BorderStyle.None;
             ListFrame.Controls.Add(AccountsView);
 
-            CenterPane.Controls.AddRange(new Control[] { GroupTitleLabel, GroupSubLabel, CheckBansButton, SelectGroupButton, ListFrame, TipLabel });
+            Grid = new AccountGrid() { Dock = DockStyle.Fill, Visible = CardView };
+            Grid.GetSelection = () => new HashSet<Account>(AccountsView.SelectedObjects.Cast<object>().OfType<Account>());
+            Grid.SetSelection = List => { AccountsView.SelectedObjects = List; Grid.Invalidate(); };
+            Grid.JoinClicked = A => JoinServer_Click(Grid, EventArgs.Empty);
+            Grid.JoinMainClicked = JoinMainWith;
+            Grid.ContextRequested = (A, P) => AccountsStrip.Show(Grid, P);
+            Grid.SectionTitle = GroupTitleOf;
+            ListFrame.Controls.Add(Grid);
+            Grid.BringToFront(); // the list stays behind it (still used for selection, menus and the list view)
+
+            AvatarCache.Changed += (s, e) => { if (IsHandleCreated && !IsDisposed) BeginInvoke((MethodInvoker)(() => Grid?.Invalidate())); };
+
+            CardPresenceTimer.Tick += async (s, e) => await UpdateCardPresence(true);
+            if (CardView) CardPresenceTimer.Start();
+
+            CenterPane.Controls.AddRange(new Control[] { GroupTitleLabel, GroupSubLabel, CheckBansButton, SelectGroupButton, ViewToggleButton, ListFrame, TipLabel });
 
             CenterPane.Layout += (s, e) =>
             {
@@ -258,8 +282,9 @@ namespace RBX_Alt_Manager
 
                 int P = Px(18), W = CenterPane.Width - P * 2;
 
-                SelectGroupButton.SetBounds(P + W - Px(124), Px(18), Px(124), Px(38));
-                CheckBansButton.SetBounds(SelectGroupButton.Left - Px(8) - Px(176), Px(18), Px(176), Px(38));
+                ViewToggleButton.SetBounds(P + W - Px(100), Px(18), Px(100), Px(38));
+                SelectGroupButton.SetBounds(ViewToggleButton.Left - Px(8) - Px(116), Px(18), Px(116), Px(38));
+                CheckBansButton.SetBounds(SelectGroupButton.Left - Px(8) - Px(170), Px(18), Px(170), Px(38));
 
                 GroupTitleLabel.SetBounds(P, Px(14), Math.Max(Px(80), CheckBansButton.Left - P - Px(10)), Px(30));
                 GroupSubLabel.SetBounds(P, Px(46), GroupTitleLabel.Width, Px(18));
@@ -301,7 +326,7 @@ namespace RBX_Alt_Manager
             LastUsedColumn.Renderer = new AccountRowRenderer(AccountColumnKind.LastUsed);
             Group.Renderer = new AccountRowRenderer(AccountColumnKind.Empty);
 
-            AccountsView.SelectionChanged += (s, e) => UpdateAccountCard();
+            AccountsView.SelectionChanged += (s, e) => { UpdateAccountCard(); Grid?.Invalidate(); };
         }
 
         private void BuildCard()
@@ -357,6 +382,7 @@ namespace RBX_Alt_Manager
             AccountCard.MoreTools.Menu = MoreToolsMenu;
 
             AccountCard.FriendTarget = FriendTargetName;
+            Grid.MainName = FriendTargetName;
         }
 
         /// <summary>Restyles the reused controls after the theme engine ran over them.</summary>
@@ -474,6 +500,82 @@ namespace RBX_Alt_Manager
             AccountsView.ModelFilter = new ModelFilter(o => o is Account A && (Key == null || A.Group == Key) && (Query.Length == 0 || Has(A.Username) || Has(A.Alias) || Has(A.Description) || Has(A.Group)));
 
             UpdateGroupHeader();
+            RefreshGrid(true);
+        }
+
+        /// <summary>Cards show the same accounts as the list (same filter), sorted by group like the list's groups.</summary>
+        private void RefreshGrid(bool ScrollTop = false)
+        {
+            if (Grid == null || AccountsView == null) return;
+
+            var Visible = AccountsView.FilteredObjects.Cast<object>().OfType<Account>()
+                .Select((A, Index) => (A, Index))
+                .OrderBy(x => x.A.Group ?? string.Empty, StringComparer.CurrentCulture).ThenBy(x => x.Index)
+                .Select(x => x.A);
+
+            Grid.SetItems(Visible, ActiveGroupKey == null);
+
+            if (ScrollTop) Grid.AutoScrollPosition = Point.Empty;
+
+            if (CardView) _ = UpdateCardPresence();
+        }
+
+        private void SetCardView(bool Cards)
+        {
+            CardView = Cards;
+            Grid.Visible = Cards;
+            ViewToggleButton.Text = Cards ? "List view" : "Card view";
+
+            if (Cards) { Grid.BringToFront(); RefreshGrid(); CardPresenceTimer.Start(); }
+            else CardPresenceTimer.Stop();
+
+            General?.Set("MainView", Cards ? "Cards" : "List");
+            IniSettings?.Save("RAMSettings.ini");
+        }
+
+        private bool UpdatingCardPresence;
+        private DateTime LastCardPresence;
+
+        /// <summary>Online status for every card (not only the rows the list happens to show).</summary>
+        private async Task UpdateCardPresence(bool Force = false)
+        {
+            if (UpdatingCardPresence || Grid == null || !General.Get<bool>("ShowPresence")) return;
+            if (!Force && (DateTime.Now - LastCardPresence).TotalSeconds < 15) return;
+
+            UpdatingCardPresence = true;
+            LastCardPresence = DateTime.Now;
+
+            try
+            {
+                var Ids = Grid.Shown.Select(a => a.UserID).Where(id => id > 0).Distinct().ToList();
+
+                for (int i = 0; i < Ids.Count; i += 50)
+                    try { await Presence.UpdatePresence(Ids.Skip(i).Take(50).ToArray()); } catch { }
+
+                Grid.Invalidate();
+                AccountCard?.Invalidate();
+            }
+            finally { UpdatingCardPresence = false; }
+        }
+
+        private async void JoinMainWith(Account A)
+        {
+            string Target = FriendTargetName;
+
+            var (Found, TargetId) = await Task.Run(() => (GetUserID(Target, out long Id, out _), Id));
+
+            if (!Found || TargetId <= 0) { MessageBox.Show($"The Roblox user \"{Target}\" was not found. Change the main account on the right (\"Change\").", "Join " + Target, MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+
+            if (!(await Presence.GetPresenceSingular(TargetId) is UserPresence Status && Status.userPresenceType == UserPresenceType.InGame && Status.placeId is long PlaceId && PlaceId > 0) &&
+                !Utilities.YesNoPrompt("Join " + Target, $"{Target} is not in a game right now or has joins turned off", "Do you want to try to join anyway?"))
+                return;
+
+            CancelLaunching();
+
+            string Result = await A.JoinServer(TargetId, string.Empty, true);
+
+            if (!Result.Contains("Success"))
+                MessageBox.Show(Result, "Join " + Target, MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
 
         private void SelectAllVisible()
@@ -752,6 +854,7 @@ namespace RBX_Alt_Manager
             AccountsView.Invalidate();
             UpdateGroupSidebar();
             AccountCard.RefreshState();
+            Grid.Invalidate();
 
             int Banned = Results.Count(r => r.Value == BanCheckResult.Banned || r.Value == BanCheckResult.TempBanned);
             int NeedLogin = Results.Count(r => r.Value == BanCheckResult.NeedsLogin);
@@ -884,6 +987,8 @@ namespace RBX_Alt_Manager
 
             AccountCard.FriendTarget = FriendTargetName;
             AccountCard.RefreshState();
+            Grid.MainName = FriendTargetName;
+            Grid.Invalidate();
         }
 
         #endregion

@@ -213,7 +213,7 @@ namespace RBX_Alt_Manager
             AccountsView.GroupWithItemCountFormat = "{0}   ·   {1} accounts";
             AccountsView.GroupWithItemCountSingularFormat = "{0}   ·   {1} account";
 
-            AccountsView.AfterCreatingGroups += (s, e) => UpdateGroupSidebar();
+            AccountsView.AfterCreatingGroups += (s, e) => { UpdateGroupSidebar(); RefreshGrid(); };
 
             ApplyAccountFilter();
 
@@ -359,7 +359,7 @@ namespace RBX_Alt_Manager
         {
             if (!IsHandleCreated || IsDisposed) return;
 
-            BeginInvoke((MethodInvoker)(() => { GroupsSidebar?.Invalidate(); AccountCard?.Invalidate(); }));
+            BeginInvoke((MethodInvoker)(() => { GroupsSidebar?.Invalidate(); AccountCard?.Invalidate(); Grid?.Invalidate(); }));
         }
 
         #endregion
