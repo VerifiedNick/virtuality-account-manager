@@ -143,7 +143,7 @@ namespace RBX_Alt_Manager
             if (!General.Exists("EncryptProfiles")) General.Set("EncryptProfiles", "true");
             ProfileVault.KeyProvider = ProfileKey;
             // main account: existing installs keep the one they always had, a brand-new install starts without one (chosen with "Change")
-            if (!General.Exists("FriendTarget")) General.Set("FriendTarget", File.Exists(SaveFilePath) ? "" : "");
+            if (!General.Exists("FriendTarget")) General.Set("FriendTarget", "");
             if (!General.Exists("AutoCookieRefresh")) General.Set("AutoCookieRefresh", "true");
             if (!General.Exists("AutoCloseLastProcess")) General.Set("AutoCloseLastProcess", "true");
             if (!General.Exists("ShowPresence")) General.Set("ShowPresence", "true");
