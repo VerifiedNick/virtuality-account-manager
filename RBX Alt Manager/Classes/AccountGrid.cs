@@ -106,6 +106,13 @@ namespace RBX_Alt_Manager.Classes
 
         public IReadOnlyList<Account> Shown => Items;
 
+        /// <summary>List view: one wide row per account instead of cards (same features: selection, drag, buttons, menus).</summary>
+        private bool RowMode_;
+        public bool RowMode { get => RowMode_; set { if (RowMode_ == value) return; RowMode_ = value; Relayout(); Invalidate(); } }
+
+        private int RowH => Modern.Px(64);
+        private int RowGap => Modern.Px(6);
+
         private void Relayout()
         {
             Entries.Clear();
@@ -117,13 +124,17 @@ namespace RBX_Alt_Manager.Classes
             string LastGroup = null;
             bool First = true;
 
+            if (RowMode_) { Cols = 1; CardW = W - Pad * 2; }
+
+            int ItemH = RowMode_ ? RowH : CardH, ItemGap = RowMode_ ? RowGap : GapX;
+
             foreach (Account A in Items)
             {
                 var E = new Entry() { Account = A };
 
                 if (Sections && (First || A.Group != LastGroup))
                 {
-                    if (!First && Col != 0) Y += CardH + GapX;
+                    if (!First && Col != 0) Y += ItemH + ItemGap;
                     if (!First) Y += Modern.Px(8);
 
                     Col = 0;
@@ -135,15 +146,15 @@ namespace RBX_Alt_Manager.Classes
                 First = false;
                 LastGroup = A.Group;
 
-                E.Card = new Rectangle(Pad + Col * (CardW + GapX), Y, CardW, CardH);
+                E.Card = new Rectangle(Pad + Col * (CardW + GapX), Y, CardW, ItemH);
                 Entries.Add(E);
 
                 Col++;
 
-                if (Col >= Cols) { Col = 0; Y += CardH + GapX; }
+                if (Col >= Cols) { Col = 0; Y += ItemH + ItemGap; }
             }
 
-            if (Col != 0) Y += CardH + GapX;
+            if (Col != 0) Y += ItemH + ItemGap;
 
             AutoScrollMinSize = new Size(0, Y + Pad);
         }
@@ -157,11 +168,26 @@ namespace RBX_Alt_Manager.Classes
 
         private Rectangle Shift(Rectangle R) => new Rectangle(R.X + AutoScrollPosition.X, R.Y + AutoScrollPosition.Y, R.Width, R.Height);
 
-        private static Rectangle FullButton(Rectangle Card) =>
-            new Rectangle(Card.X + Modern.Px(12), Card.Bottom - Modern.Px(12) - Modern.Px(30), Card.Width - Modern.Px(24), Modern.Px(30));
+        private Rectangle FullButton(Rectangle Card)
+        {
+            if (RowMode_)
+            {
+                int W = Modern.Px(140) + Modern.Px(8) + Modern.Px(170), H = Modern.Px(32);
+                return new Rectangle(Card.Right - Modern.Px(14) - W, Card.Y + (Card.Height - H) / 2, W, H);
+            }
+
+            return new Rectangle(Card.X + Modern.Px(12), Card.Bottom - Modern.Px(12) - Modern.Px(30), Card.Width - Modern.Px(24), Modern.Px(30));
+        }
 
         private (Rectangle Join, Rectangle Main) Buttons(Rectangle Card)
         {
+            if (RowMode_)
+            {
+                int RH_ = Modern.Px(32), RY = Card.Y + (Card.Height - RH_) / 2, RMainW = Modern.Px(170), RJoinW = Modern.Px(140);
+                var RMain = new Rectangle(Card.Right - Modern.Px(14) - RMainW, RY, RMainW, RH_);
+                return (new Rectangle(RMain.X - Modern.Px(8) - RJoinW, RY, RJoinW, RH_), RMain);
+            }
+
             int P = Modern.Px(12), H = Modern.Px(30), G = Modern.Px(8);
             int Y = Card.Bottom - P - H, W = Card.Width - P * 2;
             int JoinW = Math.Max(Modern.Px(56), W * 36 / 100);
@@ -224,7 +250,8 @@ namespace RBX_Alt_Manager.Classes
 
                 if (R.Bottom < 0 || R.Top > Height) continue;
 
-                DrawCard(G, E.Account, R, Selected.Contains(E.Account), E.Account == HoverAccount);
+                if (RowMode_) DrawRow(G, E.Account, R, Selected.Contains(E.Account), E.Account == HoverAccount);
+                else DrawCard(G, E.Account, R, Selected.Contains(E.Account), E.Account == HoverAccount);
             }
 
             if (Dragging)
@@ -328,6 +355,100 @@ namespace RBX_Alt_Manager.Classes
 
             var (JoinR, MainR) = Buttons(R);
 
+            DrawButton(G, JoinR, "Join", false, !Banned && A == HoverAccount && HoverButton == 1, Banned);
+            DrawButton(G, MainR, $"Join {MainName}", false, !Banned && A == HoverAccount && HoverButton == 2, Banned);
+        }
+
+        /// <summary>List view row: picture, name + e-mail, status, last used, note, and the same buttons as the card.</summary>
+        private void DrawRow(Graphics G, Account A, Rectangle R, bool Sel, bool Hover)
+        {
+            AccountState State = AccountRowRenderer.StateOf(A);
+            bool Banned = State == AccountState.Banned, Login = State == AccountState.NeedsLogin, InGame = State == AccountState.InGame;
+
+            Color Fill = Sel ? Modern.Selected : (Hover ? Color.FromArgb(14, 14, 14) : (InGame ? Modern.OnlineBg : Modern.Panel));
+            Color Border = Sel ? Modern.Accent : (Banned ? Modern.DangerLine : (Login ? Color.FromArgb(110, 84, 20) : (InGame ? Modern.OnlineLine : Modern.Line)));
+
+            Modern.Box(G, R, Fill, Border);
+
+            if (InGame)
+                using (var P_ = new Pen(Sel ? Modern.OnlineLine : Modern.Online))
+                    G.DrawRectangle(P_, R.X + (Sel ? 1 : 0), R.Y + (Sel ? 1 : 0), R.Width - (Sel ? 3 : 1), R.Height - (Sel ? 3 : 1));
+
+            if (Banned || Login || InGame)
+                using (var B = new SolidBrush(Banned ? Modern.Danger : (Login ? Modern.Warn : Modern.Online)))
+                    G.FillRectangle(B, R.X, R.Y, Modern.Px(3), R.Height);
+
+            // picture
+            int Av = Modern.Px(44);
+            var AvR = new Rectangle(R.X + Modern.Px(14), R.Y + (R.Height - Av) / 2, Av, Av);
+            Modern.Box(G, AvR, Modern.Field, Banned ? Modern.DangerLine : (Login ? Modern.Warn : (InGame ? Modern.Online : Modern.FieldBorder)));
+
+            Image Pic = AccountRowRenderer.HideNames ? null : AvatarCache.Get(A.UserID);
+            if (Pic != null) G.DrawImage(Pic, Rectangle.Inflate(AvR, -1, -1));
+            else Modern.Text_(G, AccountRowRenderer.HideNames ? "··" : Modern.Initials(A.Username), Modern.Font(11f, FontStyle.Regular, true), AvR, Modern.Text2, TextFormatFlags.HorizontalCenter | TextFormatFlags.NoPadding);
+
+            Color Dot = AccountRowRenderer.StateColor(State);
+
+            if (Login)
+            {
+                int BS = Modern.Px(16);
+                var BR = new Rectangle(AvR.Right - BS + Modern.Px(4), AvR.Y - Modern.Px(4), BS, BS);
+                Modern.Box(G, BR, Modern.Warn);
+                Modern.Text_(G, "!", Modern.Font(9f, FontStyle.Bold, true), BR, Color.Black, TextFormatFlags.HorizontalCenter | TextFormatFlags.NoPadding);
+            }
+
+            // columns (right edge = where the buttons start)
+            Rectangle ButtonsLeft = Login ? FullButton(R) : Buttons(R).Join;
+            int X = AvR.Right + Modern.Px(14), Right = ButtonsLeft.X - Modern.Px(16);
+            int Avail = Right - X;
+
+            int NameW = Math.Min(Modern.Px(300), Math.Max(Modern.Px(150), Avail * 40 / 100));
+            int StatusW = Math.Min(Modern.Px(220), Math.Max(Modern.Px(110), Avail * 28 / 100));
+            int UsedW = Modern.Px(110);
+
+            string Name = AccountRowRenderer.HideNames ? (string.IsNullOrEmpty(A.Alias) ? "Hidden" : A.Alias) : A.Username;
+            Modern.Text_(G, Name, Modern.Font(11f, FontStyle.Regular, true), new Rectangle(X, R.Y + Modern.Px(11), NameW, Modern.Px(22)), Banned ? Modern.Danger : Modern.Text, TextFormatFlags.NoPadding);
+
+            string Mail = A.GetField("Email");
+            string MailText = !A.Fields.ContainsKey("Email") ? "e-mail not checked yet" : (string.IsNullOrEmpty(Mail) ? "no e-mail" : (AccountRowRenderer.HideNames ? "e-mail hidden" : Mail + (A.GetField("EmailVerified") == "true" ? "  ✓" : string.Empty)));
+            Modern.Text_(G, MailText, Modern.Font(9f), new Rectangle(X, R.Y + Modern.Px(34), NameW, Modern.Px(18)), string.IsNullOrEmpty(Mail) ? Modern.Faint : Modern.Sub, TextFormatFlags.NoPadding);
+
+            X += NameW + Modern.Px(16);
+
+            if (Right - X > Modern.Px(80))
+            {
+                string StatusText = AccountRowRenderer.StateText(A, State);
+                if (InGame && !string.IsNullOrEmpty(A.Presence?.lastLocation)) StatusText = A.Presence.lastLocation;
+
+                int DS = Modern.Px(9);
+                using (var B = new SolidBrush(Dot)) G.FillRectangle(B, X, R.Y + (R.Height - DS) / 2, DS, DS);
+                Modern.Text_(G, StatusText, Modern.Font(9.75f, FontStyle.Regular, State != AccountState.Offline), new Rectangle(X + DS + Modern.Px(8), R.Y, Math.Min(StatusW, Right - X) - DS - Modern.Px(8), R.Height), State == AccountState.Offline ? Modern.Sub : Dot, TextFormatFlags.NoPadding);
+                X += StatusW + Modern.Px(16);
+            }
+
+            if (Right - X > Modern.Px(80))
+            {
+                double Days = (DateTime.Now - A.LastUse).TotalDays;
+                Color UsedC = Days > 30 ? Modern.Danger : (Days > 20 ? Modern.Warn : Modern.Sub);
+                Modern.Text_(G, "used " + Modern.Ago(A.LastUse), Modern.Font(9f), new Rectangle(X, R.Y, Math.Min(UsedW, Right - X), R.Height), UsedC, TextFormatFlags.NoPadding);
+                X += UsedW + Modern.Px(16);
+            }
+
+            string Note = FirstLine(A.Description);
+            if (!string.IsNullOrEmpty(Note) && Right - X > Modern.Px(60))
+                Modern.Text_(G, Note, Modern.Font(9f), new Rectangle(X, R.Y, Right - X, R.Height), Modern.Text2, TextFormatFlags.NoPadding);
+
+            // buttons
+            if (Login)
+            {
+                var Full = FullButton(R);
+                bool H = A == HoverAccount && HoverButton == 3;
+                Modern.Box(G, Full, H ? Color.FromArgb(40, 30, 6) : Color.FromArgb(24, 18, 4), Modern.Warn);
+                Modern.Text_(G, "Re-login", Modern.Font(9f, FontStyle.Regular, true), Full, Modern.Warn, TextFormatFlags.HorizontalCenter);
+                return;
+            }
+
+            var (JoinR, MainR) = Buttons(R);
             DrawButton(G, JoinR, "Join", false, !Banned && A == HoverAccount && HoverButton == 1, Banned);
             DrawButton(G, MainR, $"Join {MainName}", false, !Banned && A == HoverAccount && HoverButton == 2, Banned);
         }

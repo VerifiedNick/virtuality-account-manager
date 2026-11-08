@@ -362,7 +362,7 @@ namespace RBX_Alt_Manager
             AccountsView.BorderStyle = BorderStyle.None;
             ListFrame.Controls.Add(AccountsView);
 
-            Grid = new AccountGrid() { Dock = DockStyle.Fill, Visible = CardView };
+            Grid = new AccountGrid() { Dock = DockStyle.Fill, Visible = true, RowMode = !CardView };
             Grid.GetSelection = () => new HashSet<Account>(AccountsView.SelectedObjects.Cast<object>().OfType<Account>());
             Grid.SetSelection = List => { AccountsView.SelectedObjects = List; Grid.Invalidate(); };
             Grid.JoinClicked = A => { SelectedAccount = A; JoinServer_Click(Grid, EventArgs.Empty); };
@@ -380,7 +380,7 @@ namespace RBX_Alt_Manager
             AvatarCache.Changed += (s, e) => { if (IsHandleCreated && !IsDisposed) BeginInvoke((MethodInvoker)(() => { Grid?.Invalidate(); AccountCard?.Invalidate(true); })); };
 
             CardPresenceTimer.Tick += async (s, e) => await UpdateCardPresence(true);
-            if (CardView) CardPresenceTimer.Start();
+            CardPresenceTimer.Start();
 
             CenterPane.Controls.AddRange(new Control[] { GroupTitleLabel, GroupSubLabel, LoginGroupButton, CheckBansButton, SelectGroupButton, ViewToggleButton, ListFrame, TipLabel });
 
@@ -674,19 +674,21 @@ namespace RBX_Alt_Manager
 
             if (ScrollTop) Grid.AutoScrollPosition = Point.Empty;
 
-            if (CardView) _ = UpdateCardPresence();
+            _ = UpdateCardPresence();
         }
 
         private void SetCardView(bool Cards)
         {
             CardView = Cards;
-            Grid.Visible = Cards;
+            Grid.Visible = true;          // both views are drawn by the grid now (cards or rows) – crisp text, real pictures, no grid lines
+            Grid.RowMode = !Cards;
+            Grid.BringToFront();
             ViewToggleButton.Text = ViewToggleButton.FullText = Cards ? "List view" : "Card view";
             ViewToggleButton.ShortText = Cards ? "List" : "Cards";
             CenterPane.PerformLayout();
 
-            if (Cards) { Grid.BringToFront(); RefreshGrid(); CardPresenceTimer.Start(); }
-            else CardPresenceTimer.Stop();
+            RefreshGrid();
+            CardPresenceTimer.Start();
 
             General?.Set("MainView", Cards ? "Cards" : "List");
             IniSettings?.Save("RAMSettings.ini");
