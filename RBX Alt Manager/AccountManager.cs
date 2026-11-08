@@ -304,13 +304,16 @@ namespace RBX_Alt_Manager
             string Key = e.Item.Key;
             var Menu = new ContextMenuStrip();
 
-            Menu.Items.Add("Change picture (choose Rank)...", null, (s, a) => ChooseGroupPicture(Key, e.Item.Title));
+            Menu.Items.Add("Picture: choose a Rank…", null, (s, a) => ChooseGroupPicture(Key, e.Item.Title));
+            Menu.Items.Add("Picture: choose an image file…", null, (s, a) => ChooseGroupPictureFile(Key));
 
             if (GroupImages.GetOverride(Key) != null)
                 Menu.Items.Add("Use automatic picture", null, (s, a) => GroupImages.SetOverride(Key, null));
 
             Menu.Items.Add(new ToolStripSeparator());
+            Menu.Items.Add("Rename group…", null, (s, a) => RenameGroup(Key, e.Item.Title));
             Menu.Items.Add($"Select all {e.Item.Count} accounts", null, (s, a) => SelectGroup(Key));
+            RBX_Alt_Manager.Classes.ModernSkin.StyleMenu(Menu);
 
             Menu.Closed += (s, a) => BeginInvoke((MethodInvoker)Menu.Dispose);
             Menu.Show(GroupsSidebar, e.Location);
@@ -325,7 +328,8 @@ namespace RBX_Alt_Manager
             }
 
             GroupPetInfo Current = GroupImages.Resolve(Key);
-            string Suggestion = GroupImages.GetOverride(Key) ?? Current.EntryName ?? GroupImages.StripGroupPrefix(Key);
+            string Own = GroupImages.GetOverride(Key);
+            string Suggestion = (GroupImages.IsCustom(Own) ? null : Own) ?? Current.EntryName ?? GroupImages.StripGroupPrefix(Key);
 
             while (true)
             {

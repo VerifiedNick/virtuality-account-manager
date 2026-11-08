@@ -68,6 +68,7 @@ namespace RBX_Alt_Manager.Classes
             var EntryList = Catalog;
 
             string Override = GetOverride(Group);
+            if (IsCustom(Override)) Override = null; // own picture file: no entry behind it
             string Name = Override ?? StripGroupPrefix(Group);
 
             Info.FromOverride = Override != null;
@@ -131,9 +132,55 @@ namespace RBX_Alt_Manager.Classes
             }
         }
 
+        private static string CustomFolder => Path.Combine(CacheFolder, "custom");
+
+        /// <summary>True when the group uses a picture file the user chose (not a Rank).</summary>
+        public static bool IsCustom(string Override) => Override != null && Override.StartsWith("file:", StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>Own picture for a group: square-cropped, stored as 256 px PNG in GroupImages\custom.</summary>
+        public static void SetCustomImage(string Group, string SourcePath)
+        {
+            Directory.CreateDirectory(CustomFolder);
+
+            string Name = $"{Guid.NewGuid():N}.png";
+
+            using (var Src = Image.FromStream(new MemoryStream(File.ReadAllBytes(SourcePath))))
+            using (var Out = new Bitmap(256, 256))
+            using (var G = Graphics.FromImage(Out))
+            {
+                int Side = Math.Min(Src.Width, Src.Height);
+                var Crop = new Rectangle((Src.Width - Side) / 2, (Src.Height - Side) / 2, Side, Side);
+
+                G.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                G.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
+                G.DrawImage(Src, new Rectangle(0, 0, 256, 256), Crop, GraphicsUnit.Pixel);
+
+                Out.Save(Path.Combine(CustomFolder, Name), System.Drawing.Imaging.ImageFormat.Png);
+            }
+
+            SetOverride(Group, "file:" + Name);
+        }
+
         /// <summary>Returns the picture for the group, or null if there is none (yet). Missing pictures are fetched in the background.</summary>
         public static Image GetImage(string Group, out GroupPetInfo Info)
         {
+            string Own = GetOverride(Group);
+
+            if (IsCustom(Own))
+            {
+                Info = new GroupPetInfo() { FromOverride = true };
+
+                if (Images.TryGetValue(Own, out Image Mine)) return Mine;
+
+                try
+                {
+                    var Img = Image.FromStream(new MemoryStream(File.ReadAllBytes(Path.Combine(CustomFolder, Own.Substring(5)))));
+                    Images[Own] = Img;
+                    return Img;
+                }
+                catch { return null; }
+            }
+
             Info = Resolve(Group);
 
             if (string.IsNullOrEmpty(Info.AssetId)) return null;

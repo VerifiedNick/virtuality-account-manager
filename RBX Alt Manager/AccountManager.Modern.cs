@@ -24,6 +24,7 @@ namespace RBX_Alt_Manager
         private FieldBox GameField, JobField, SearchField;
         private TextBox SearchBox;
         private ModernButton JoinSelectedButton, ServerListIcon, RecentGamesIcon, AccountControlIcon, SettingsIcon, SaveJobIcon;
+        private ModernButton NewGroupButton;
         private ModernButton AddAccountButton, CheckBansButton, SelectGroupButton, ViewToggleButton, LoginGroupButton;
         private AccountGrid Grid;
         private bool CardView = true;
@@ -223,6 +224,10 @@ namespace RBX_Alt_Manager
 
             GroupsCaption = new ModernLabel() { Text = "GROUPS", Points = 7.75f, Bold = true, Color = Modern.Sub };
 
+            NewGroupButton = new ModernButton() { Text = "New group", Icon = IconKind.Plus, Style = ModernButtonStyle.Ghost, TextPoints = 8.75f };
+            NewGroupButton.Click += (s, e) => NewGroup();
+            SaveTooltip.SetToolTip(NewGroupButton, "Makes a new group from the selected accounts and lets you choose its picture.\nRight click a group to rename it or change its picture.");
+
             GroupsSidebar = new GroupSidebar() { Name = "GroupsSidebar", BackColor = Modern.Panel };
             GroupsSidebar.GroupClicked += (s, e) => SetActiveGroup(e.Item.Key);
             GroupsSidebar.GroupDoubleClicked += (s, e) => { SetActiveGroup(e.Item.Key); SelectAllVisible(); };
@@ -239,7 +244,7 @@ namespace RBX_Alt_Manager
             Controls.Remove(DownloadProgressBar);
             Controls.Remove(DLChromiumLabel);
 
-            SideBar.Controls.AddRange(new Control[] { SearchField, GroupsCaption, GroupsSidebar, DLChromiumLabel, DownloadProgressBar, AddAccountButton });
+            SideBar.Controls.AddRange(new Control[] { SearchField, GroupsCaption, NewGroupButton, GroupsSidebar, DLChromiumLabel, DownloadProgressBar, AddAccountButton });
 
             DownloadProgressBar.VisibleChanged += (s, e) => SideBar.PerformLayout();
             DLChromiumLabel.VisibleChanged += (s, e) => SideBar.PerformLayout();
@@ -251,7 +256,8 @@ namespace RBX_Alt_Manager
                 int P = Modern.Gutter, W = SideBar.Width - P * 2 - 1;
 
                 SearchField.SetBounds(P, P, W, Modern.RowH);
-                GroupsCaption.SetBounds(P, SearchField.Bottom + Px(14), W, Px(16));
+                GroupsCaption.SetBounds(P, SearchField.Bottom + Px(10), W - Px(120), Px(26));
+                NewGroupButton.SetBounds(P + W - Px(116), SearchField.Bottom + Px(10), Px(116), Px(26));
 
                 int Bottom = SideBar.Height - P;
 
@@ -553,7 +559,7 @@ namespace RBX_Alt_Manager
             if (Short.Length == 0) Short = Title;
 
             // abbreviations like "HSA" show the Rank chosen for the group's picture
-            if (!Short.Contains(" ") && Short.Length <= 5 && Short.ToUpperInvariant() == Short && GroupImages.GetOverride(Key) is string Entry)
+            if (!Short.Contains(" ") && Short.Length <= 5 && Short.ToUpperInvariant() == Short && GroupImages.GetOverride(Key) is string Entry && !GroupImages.IsCustom(Entry))
                 return Entry;
 
             return Short;
@@ -663,6 +669,82 @@ namespace RBX_Alt_Manager
             if (!Result.Contains("Success"))
                 ModernDialog.Show(Result, "Join " + Target, MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
+
+        #region Groups: new, rename, own picture
+
+        /// <summary>
+        /// A group exists through its accounts, so a new group is made from the selected accounts:
+        /// name → accounts move there → choose a picture (Rank or own image).
+        /// </summary>
+        private void NewGroup()
+        {
+            var Selected = AccountsView.SelectedObjects.Cast<object>().OfType<Account>().ToList();
+
+            if (Selected.Count == 0)
+            {
+                ModernDialog.Show("First select the accounts that should go into the new group (click, Ctrl + click or drag a frame over the cards), then click \"New group\" again.\n\nA group always needs at least one account.", "New group", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            string Name = ShowDialog($"Name of the new group ({Selected.Count} selected account{(Selected.Count == 1 ? "" : "s")} move there):", "New group");
+            if (Name == "/UC" || string.IsNullOrWhiteSpace(Name)) return;
+            Name = Name.Trim();
+
+            bool Exists = AccountsList.Any(a => string.Equals(a.Group, Name, StringComparison.OrdinalIgnoreCase));
+            if (Exists && ModernDialog.Show($"A group called \"{Name}\" already exists. Move the {Selected.Count} account(s) into it?", "New group", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+                return;
+
+            if (Exists) Name = AccountsList.First(a => string.Equals(a.Group, Name, StringComparison.OrdinalIgnoreCase)).Group;
+
+            foreach (var A in Selected) A.Group = Name;
+
+            RefreshView();
+            SaveAccounts(true);
+            SetActiveGroup(Name);
+
+            if (!Exists) AskGroupPicture(Name);
+        }
+
+        private void AskGroupPicture(string Key)
+        {
+            var Menu = new ContextMenuStrip();
+            Menu.Items.Add("Choose a Rank as picture…", null, (s, e) => ChooseGroupPicture(Key, GroupTitleOf(Key)));
+            Menu.Items.Add("Choose an image file…", null, (s, e) => ChooseGroupPictureFile(Key));
+            Menu.Items.Add("Automatic (from the group name)", null, (s, e) => { });
+            ModernSkin.StyleMenu(Menu);
+            Menu.Closed += (s, e) => BeginInvoke((MethodInvoker)Menu.Dispose);
+            Menu.Show(NewGroupButton, new Point(0, NewGroupButton.Height));
+        }
+
+        private void ChooseGroupPictureFile(string Key)
+        {
+            using (var Dialog = new OpenFileDialog() { Title = "Picture for the group", Filter = "Images (*.png;*.jpg;*.jpeg;*.webp;*.bmp;*.gif)|*.png;*.jpg;*.jpeg;*.webp;*.bmp;*.gif|All files (*.*)|*.*" })
+            {
+                if (Dialog.ShowDialog(this) != DialogResult.OK) return;
+
+                try { GroupImages.SetCustomImage(Key, Dialog.FileName); }
+                catch (Exception x) { ModernDialog.Show($"That file could not be used as a picture.\n\n{x.Message}", "Group picture", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
+            }
+        }
+
+        private void RenameGroup(string Key, string Title)
+        {
+            string Name = ShowDialog($"New name for \"{Title}\":", "Rename group", Key);
+            if (Name == "/UC" || string.IsNullOrWhiteSpace(Name) || Name.Trim() == Key) return;
+            Name = Name.Trim();
+
+            string Picture = GroupImages.GetOverride(Key);
+
+            foreach (var A in AccountsList.Where(a => a.Group == Key)) A.Group = Name;
+
+            if (Picture != null) { GroupImages.SetOverride(Name, Picture); GroupImages.SetOverride(Key, null); }
+
+            RefreshView();
+            SaveAccounts(true);
+            SetActiveGroup(Name);
+        }
+
+        #endregion
 
         #region Same server
 
