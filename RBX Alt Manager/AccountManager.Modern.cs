@@ -1299,13 +1299,22 @@ namespace RBX_Alt_Manager
         }
 
         /// <summary>The account the "Join …" button on every account joins. Its own setting; until chosen it is the main account.</summary>
-        private string JoinTargetName => General != null && General.Exists("JoinTarget") && !string.IsNullOrWhiteSpace(General.Get("JoinTarget")) ? General.Get("JoinTarget").Trim() : FriendTargetName;
+        // "JoinTarget" not set at all: the Join button follows the main account. Set to "-": explicitly cleared, plain "Join" for everyone, even if a main account exists.
+        private string JoinTargetName
+        {
+            get
+            {
+                if (General == null || !General.Exists("JoinTarget")) return FriendTargetName;
 
+                string V = (General.Get("JoinTarget") ?? string.Empty).Trim();
+                return V == "-" ? string.Empty : (V.Length > 0 ? V : FriendTargetName);
+            }
+        }
+
+        /// <summary>Sets the Join button's target for every account at once. Pass an empty name to clear it (plain "Join").</summary>
         private void SetJoinTarget(string Name)
         {
-            if (string.IsNullOrWhiteSpace(Name)) return;
-
-            General.Set("JoinTarget", Name.Trim());
+            General.Set("JoinTarget", string.IsNullOrWhiteSpace(Name) ? "-" : Name.Trim());
             IniSettings.Save("RAMSettings.ini");
 
             Grid.MainName = JoinTargetName;
@@ -1328,6 +1337,12 @@ namespace RBX_Alt_Manager
             }
 
             Menu.Items.Add(new ToolStripMenuItem("The Join button joins:") { Enabled = false });
+
+            var None = new ToolStripMenuItem("Nothing – plain \"Join\"") { Checked = Current.Length == 0 };
+            None.Click += (s, e) => SetJoinTarget(string.Empty);
+            Menu.Items.Add(None);
+            Menu.Items.Add(new ToolStripSeparator());
+
             if (FriendTargetName.Length > 0)
             {
                 Menu.Items.Add(Pick(FriendTargetName, $"{FriendTargetName}   (main account)"));
@@ -1350,7 +1365,7 @@ namespace RBX_Alt_Manager
             {
                 using (var Dialog = MakeDialog("Join button", 130))
                 {
-                    var NameBox = DialogTextBox(Dialog, "Roblox username the Join button joins", Current, 14);
+                    var NameBox = DialogTextBox(Dialog, "Roblox username the Join button joins (leave empty for none)", Current, 14);
                     DialogButtons(Dialog);
                     if (Dialog.ShowDialog(this) == DialogResult.OK) SetJoinTarget(NameBox.Text);
                 }
@@ -1675,13 +1690,13 @@ namespace RBX_Alt_Manager
         {
             using (var Dialog = MakeDialog("Main account", 190))
             {
-                var NameBox = DialogTextBox(Dialog, "Main account (gets the friend requests)", FriendTargetName, 14);
+                var NameBox = DialogTextBox(Dialog, "Main account (gets the friend requests, leave empty for none)", FriendTargetName, 14);
                 var DelayBox = DialogTextBox(Dialog, "Pause between the accounts (seconds)", FriendDelaySeconds.ToString(), 72);
                 DialogButtons(Dialog);
 
                 if (Dialog.ShowDialog(this) != DialogResult.OK) return;
 
-                if (!string.IsNullOrWhiteSpace(NameBox.Text)) General.Set("FriendTarget", NameBox.Text.Trim());
+                General.Set("FriendTarget", NameBox.Text.Trim());
                 if (int.TryParse(DelayBox.Text.Trim(), out int Delay) && Delay > 0) General.Set("FriendRequestDelay", Math.Min(Delay, 600).ToString());
 
                 IniSettings.Save("RAMSettings.ini");
