@@ -154,14 +154,17 @@ namespace RBX_Alt_Manager.Classes
 
                     try
                     {
-                        if (Directory.Exists(Target)) { Directory.Delete(Profile, true); return; } // the account already had one
+                        if (Directory.Exists(Target) || File.Exists(Target + ".vault")) { Directory.Delete(Profile, true); return; } // the account already had one
                         Directory.Move(Profile, Target);
+                        ProfileVault.Seal(Target); // lock it right away
                         return;
                     }
                     catch { }
                 }
             });
         }
+
+        public static void DropProfileCaches(string Profile) => DropCaches(Profile);
 
         private static void DropCaches(string Profile)
         {
@@ -174,6 +177,7 @@ namespace RBX_Alt_Manager.Classes
         public static async Task<(string Cookie, string Password)?> Run(string Browser, string Username, string Password, string Profile, Action<string> Status = null)
         {
             int Port = FreePort();
+            ProfileVault.Unseal(Profile); // decrypt the saved profile (if any) before the browser opens it
             Directory.CreateDirectory(Profile);
 
             string Args = $"--user-data-dir=\"{Profile}\" --remote-debugging-port={Port} --remote-allow-origins=* --no-first-run --no-default-browser-check --disable-sync --disk-cache-size=1 --media-cache-size=1 --window-size=900,820 \"https://www.roblox.com/login\"";

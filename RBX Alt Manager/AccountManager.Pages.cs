@@ -663,6 +663,8 @@ namespace RBX_Alt_Manager
         /// <summary>Short confirmation after a correct PIN: logo + check, then the accounts.</summary>
         private void PlayUnlocked()
         {
+            ProfileVault.SealAllInBackground(); // the PIN is known now: protect any profile left unlocked by a crash
+
             var Overlay = new Panel() { BackColor = Modern.Bg, Tag = "NoScaling", Bounds = ClientRectangle, Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right };
             var Started = DateTime.Now;
 

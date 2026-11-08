@@ -200,6 +200,10 @@ namespace RBX_Alt_Manager.Forms
             Toggle(S, "Save passwords", "Keeps the password of each account (encrypted), needed for Re-login and Copy password.",
                 () => General.Get<bool>("SavePasswords"), V => { General.Set("SavePasswords", Bool(V)); Save(); });
 
+            Toggle(S, "Encrypt browser logins", "Locks the LoginProfiles folder (the saved browser sessions) with your PIN whenever they aren't in use – strong encryption, same as your accounts. Leave on. Only matters if you have a PIN.",
+                () => !General.Exists("EncryptProfiles") || General.Get<bool>("EncryptProfiles"),
+                V => { General.Set("EncryptProfiles", Bool(V)); Save(); if (V) RBX_Alt_Manager.Classes.ProfileVault.SealAllInBackground(); });
+
             ModernLabel BackupDesc = null;
             ModernButton RestoreButton = null;
             var RestoreMenu = new ContextMenuStrip();

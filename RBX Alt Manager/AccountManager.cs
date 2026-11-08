@@ -140,6 +140,8 @@ namespace RBX_Alt_Manager
                         ModernDialog.Show("In case the font scaling is incorrect, open RAMSettings.ini and change \"ScaleFonts=true\" to \"ScaleFonts=false\" without the quotes.", "Roblox Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             if (!General.Exists("ScaleFonts")) General.Set("ScaleFonts", "true");
+            if (!General.Exists("EncryptProfiles")) General.Set("EncryptProfiles", "true");
+            ProfileVault.KeyProvider = ProfileKey;
             // main account: existing installs keep the one they always had, a brand-new install starts without one (chosen with "Change")
             if (!General.Exists("FriendTarget")) General.Set("FriendTarget", File.Exists(SaveFilePath) ? "" : "");
             if (!General.Exists("AutoCookieRefresh")) General.Set("AutoCookieRefresh", "true");
@@ -397,6 +399,18 @@ namespace RBX_Alt_Manager
         }
 
         private static ReadOnlyMemory<byte> PasswordHash; // Store the hash after the data is successfully decrypted so we can encrypt again.
+
+        /// <summary>The PIN key for the profile vault, or null when there is no PIN or the setting is off. Never leaves the app.</summary>
+        public static byte[] ProfileKey()
+        {
+            try
+            {
+                if (PasswordHash.IsEmpty) return null;
+                if (General != null && General.Exists("EncryptProfiles") && !General.Get<bool>("EncryptProfiles")) return null;
+                return ProtectedData.Unprotect(PasswordHash.ToArray(), Array.Empty<byte>(), DataProtectionScope.CurrentUser);
+            }
+            catch { return null; }
+        }
 
         private void LoadAccounts(byte[] Hash = null)
         {
@@ -1832,6 +1846,8 @@ namespace RBX_Alt_Manager
             AltManagerWS?.Stop();
 
             if (!SavingBlocked) Backups.MakeBackup("close");
+
+            ProfileVault.SealAll(); // lock the browser logins before the manager closes
 
             if (PlaceID == null || string.IsNullOrEmpty(PlaceID.Text)) return;
 

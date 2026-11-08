@@ -1266,7 +1266,7 @@ namespace RBX_Alt_Manager
                         ModernDialog.Show("Roblox did not accept the login cookie. Please try again.", "Login", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     else
                     {
-                        CleanLogin.AdoptProfile(Profile, Added.UserID);
+                        CleanLogin.AdoptProfile(Profile, Added.UserID); // new account: sealed inside AdoptProfile after it is renamed
 
                         AccountSession.LoggedIn(Added, "login window");
 
@@ -1285,6 +1285,8 @@ namespace RBX_Alt_Manager
             }
             finally
             {
+                if (UserId > 0) _ = Task.Run(() => { System.Threading.Thread.Sleep(2500); ProfileVault.Seal(Profile); }); // re-login: seal once the browser let go
+
                 Activities.End(Job);
                 AccountCard.LoginBusy = false;
                 AddAccountButton.Enabled = true;
