@@ -193,34 +193,12 @@ namespace RBX_Alt_Manager.Classes
                 string CountText = Item.Count == 1 ? "1 account" : $"{Item.Count} accounts";
                 TextRenderer.DrawText(G, CountText, CountFont, CountR, Modern.Sub, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
 
-                // banned / not logged in: small marks at the right end of the second line (the totals are in the header, so not on "All accounts")
-                int BadgeLeft = CountR.Right;
-
-                if (Item.Key != null)
+                // banned accounts: written right after the count, in red ("6 accounts · 1 banned") – same wording as the group title
+                if (Item.Key != null && Item.Banned > 0)
                 {
-                    Font BF = Modern.Font(7.5f, FontStyle.Regular, true);
-
-                    void Badge(int Count, Color Fore, Color Fill, Color Border)
-                    {
-                        if (Count <= 0) return;
-
-                        string T = Count.ToString();
-                        int BW = Math.Max((int)(16 * S), TextRenderer.MeasureText(T, BF, Size.Empty, TextFormatFlags.NoPadding).Width + (int)(8 * S));
-                        var BR = new Rectangle(BadgeLeft - BW, CountR.Y + (CountR.Height - (int)(14 * S)) / 2, BW, (int)(14 * S));
-
-                        Modern.Box(G, BR, Fill, Border);
-                        TextRenderer.DrawText(G, T, BF, BR, Fore, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding);
-                        BadgeLeft = BR.Left - (int)(4 * S);
-                    }
-
-                    Badge(Item.Banned, Modern.Danger, Modern.DangerBg, Modern.DangerLine);
-                }
-
-                if (Item.Key != null)
-                {
-                    int CW = TextRenderer.MeasureText(CountText, CountFont, Size.Empty, TextFormatFlags.NoPadding).Width + (int)(12 * S);
-
-
+                    int CW = TextRenderer.MeasureText(G, CountText, CountFont, Size.Empty, TextFormatFlags.NoPadding).Width;
+                    var BanR = new Rectangle(CountR.X + CW, CountR.Y, Math.Max(0, CountR.Right - CountR.X - CW), CountR.Height);
+                    TextRenderer.DrawText(G, $"  ·  {Item.Banned} banned", CountFont, BanR, Modern.Danger, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding | TextFormatFlags.EndEllipsis);
                 }
             }
         }
