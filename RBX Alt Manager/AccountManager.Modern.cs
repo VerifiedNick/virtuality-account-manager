@@ -96,17 +96,51 @@ namespace RBX_Alt_Manager
 
         private void BuildHeader()
         {
+            // left of the header: a quick overview instead of a second "Lizer Manager" (the name is in the window title)
             HeaderBar.Paint += (s, e) =>
             {
                 var G = e.Graphics;
                 Modern.Prepare(G);
 
-                int Sq = Px(10), Y = HeaderBar.Height / 2;
+                var List = AccountsList;
+                if (List == null) return;
 
-                using (var B = new SolidBrush(Modern.Accent))
-                    G.FillRectangle(B, Px(20), Y - Sq / 2, Sq, Sq);
+                int Total = List.Count, Online = 0, Banned = 0, Login = 0;
 
-                Modern.Text_(G, "LIZER MANAGER", Modern.Font(10.5f, FontStyle.Regular, true), new Rectangle(Px(38), 0, Px(190), HeaderBar.Height), Modern.Text, TextFormatFlags.NoPadding);
+                foreach (var A in List)
+                    switch (AccountRowRenderer.StateOf(A))
+                    {
+                        case AccountState.Online: case AccountState.InGame: case AccountState.InStudio: Online++; break;
+                        case AccountState.Banned: Banned++; break;
+                        case AccountState.NeedsLogin: Login++; break;
+                    }
+
+                int X = Px(20), W = Px(196), H = HeaderBar.Height;
+
+                Modern.Text_(G, $"{Total} accounts", Modern.Font(10.5f, FontStyle.Regular, true), new Rectangle(X, H / 2 - Px(20), W, Px(20)), Modern.Text, TextFormatFlags.NoPadding);
+
+                int CX = X, CY = H / 2 + Px(2), CH = Px(16);
+                Font F = Modern.Font(8.25f);
+
+                void Stat(int Count, string Label, Color C)
+                {
+                    if (Count <= 0 || CX > X + W) return;
+
+                    int Dot = Px(7);
+                    using (var B = new SolidBrush(C)) G.FillRectangle(B, CX, CY + (CH - Dot) / 2, Dot, Dot);
+
+                    string T = $"{Count} {Label}";
+                    int TW = TextRenderer.MeasureText(T, F, Size.Empty, TextFormatFlags.NoPadding).Width;
+                    Modern.Text_(G, T, F, new Rectangle(CX + Dot + Px(5), CY, Math.Min(TW + Px(2), X + W - CX), CH), Modern.Sub, TextFormatFlags.NoPadding);
+                    CX += Dot + Px(5) + TW + Px(10);
+                }
+
+                Stat(Online, "online", Modern.Accent);
+                Stat(Login, "login", Modern.Warn);
+                Stat(Banned, "banned", Modern.Danger);
+
+                if (Online + Login + Banned == 0)
+                    Modern.Text_(G, "all offline", F, new Rectangle(X, CY, W, CH), Modern.Sub, TextFormatFlags.NoPadding);
             };
 
             GameField = new FieldBox() { Caption = "Game" };
@@ -574,6 +608,7 @@ namespace RBX_Alt_Manager
 
                 Grid.Invalidate();
                 AccountCard?.Invalidate();
+                HeaderBar?.Invalidate();
             }
             finally { UpdatingCardPresence = false; }
         }
@@ -660,6 +695,7 @@ namespace RBX_Alt_Manager
 
             GroupsSidebar.SetGroups(Items);
             GroupsSidebar.SetActive(ActiveGroupKey);
+            HeaderBar?.Invalidate();
 
             if (!QuietCheckStarted && AccountsList.Count > 0 && !PasswordPanel.Visible) QuietSessionCheck();
 
@@ -957,6 +993,7 @@ namespace RBX_Alt_Manager
 
         private void RefreshAfterChecks()
         {
+            HeaderBar?.Invalidate();
             AccountsView.Invalidate();
             UpdateGroupSidebar();
             AccountCard.RefreshState();
