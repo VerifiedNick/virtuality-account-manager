@@ -25,6 +25,18 @@ namespace RBX_Alt_Manager
         private TextBox SearchBox;
         private ModernButton JoinSelectedButton, ServerListIcon, RecentGamesIcon, AccountControlIcon, SettingsIcon, SaveJobIcon;
         private ModernButton NewGroupButton;
+        private Panel EmptyGroupPanel;
+
+        /// <summary>Shows the "no accounts yet" page for an empty group (not while searching).</summary>
+        private void UpdateEmptyGroup()
+        {
+            if (EmptyGroupPanel == null) return;
+
+            bool Show = ActiveGroupKey != null && SearchBox.Text.Trim().Length == 0 && !AccountsList.Any(a => a.Group == ActiveGroupKey);
+
+            if (Show) { EmptyGroupPanel.PerformLayout(); EmptyGroupPanel.Invalidate(true); EmptyGroupPanel.BringToFront(); }
+            EmptyGroupPanel.Visible = Show;
+        }
         private ModernButton AddAccountButton, CheckBansButton, SelectGroupButton, ViewToggleButton, LoginGroupButton;
         private AccountGrid Grid;
         private bool CardView = true;
@@ -278,7 +290,7 @@ namespace RBX_Alt_Manager
 
             NewGroupButton = new ModernButton() { Text = "New group", Icon = IconKind.Plus, Style = ModernButtonStyle.Ghost, TextPoints = 8.75f };
             NewGroupButton.Click += (s, e) => NewGroup();
-            SaveTooltip.SetToolTip(NewGroupButton, "Makes a new group from the selected accounts and lets you choose its picture.\nRight click a group to rename it or change its picture.");
+            SaveTooltip.SetToolTip(NewGroupButton, "Makes a new group (the selected accounts can move there, or it starts empty) and lets you choose its picture.\nRight click a group to rename it or change its picture.");
 
             GroupsSidebar = new GroupSidebar() { Name = "GroupsSidebar", BackColor = Modern.Panel };
             GroupsSidebar.GroupClicked += (s, e) => SetActiveGroup(e.Item.Key);
@@ -371,6 +383,31 @@ namespace RBX_Alt_Manager
             Grid.ContextRequested = (A, P) => AccountsStrip.Show(Grid, P);
             Grid.SectionTitle = GroupTitleOf;
             ListFrame.Controls.Add(Grid);
+
+            // empty group (created without accounts): explain it and offer "Add account" right here
+            EmptyGroupPanel = new Panel() { Dock = DockStyle.Fill, BackColor = Modern.Bg, Visible = false, Tag = "NoScaling" };
+            var EmptyTitle = new ModernLabel() { Points = 13f, Bold = true, Center = true };
+            var EmptySub = new ModernLabel() { Text = "Add a new account here – it goes straight into this group.\nOr move existing accounts: select them, right click → Move to group.", Points = 9.5f, Color = Modern.Sub, Center = true, Wrap = true };
+            var EmptyAdd = new ModernButton() { Text = "Add account", Icon = IconKind.Plus, Style = ModernButtonStyle.Primary, TextPoints = 10f };
+            var EmptyDelete = new ModernButton() { Text = "Delete this empty group", Style = ModernButtonStyle.Ghost, Bold = false };
+
+            EmptyAdd.Click += (s, e) => ShowAddAccountDialog();
+            EmptyDelete.Click += (s, e) => { if (ActiveGroupKey != null) DeleteEmptyGroup(ActiveGroupKey); };
+
+            EmptyGroupPanel.Controls.AddRange(new Control[] { EmptyTitle, EmptySub, EmptyAdd, EmptyDelete });
+            EmptyGroupPanel.Layout += (s, e) =>
+            {
+                EmptyTitle.Text = ActiveGroupKey != null ? $"{GroupTitleOf(ActiveGroupKey)} has no accounts yet" : string.Empty;
+
+                int W = Math.Min(EmptyGroupPanel.Width - Modern.Gutter * 2, Px(460)), X = (EmptyGroupPanel.Width - W) / 2;
+                int Y = Math.Max(Modern.Gutter, EmptyGroupPanel.Height / 2 - Px(110));
+
+                EmptyTitle.SetBounds(X, Y, W, Px(30)); Y += Px(30) + Px(8);
+                EmptySub.SetBounds(X, Y, W, Px(44)); Y += Px(44) + Px(20);
+                EmptyAdd.SetBounds(X + (W - Px(220)) / 2, Y, Px(220), Px(44)); Y += Px(44) + Px(10);
+                EmptyDelete.SetBounds(X + (W - Px(220)) / 2, Y, Px(220), Px(34));
+            };
+            ListFrame.Controls.Add(EmptyGroupPanel);
 
             Modern.DarkScrollbars(Grid);
             Modern.DarkScrollbars(AccountsView);
@@ -637,6 +674,7 @@ namespace RBX_Alt_Manager
         private void SetActiveGroup(string Key)
         {
             ActiveGroupKey = Key;
+            NewAccountGroup = Key; // "Add account" puts new accounts into the open group
             GroupsSidebar?.SetActive(Key);
 
             ApplyAccountFilter();
@@ -671,6 +709,7 @@ namespace RBX_Alt_Manager
                 .Select(x => x.A);
 
             Grid.SetItems(Visible, ActiveGroupKey == null);
+            UpdateEmptyGroup();
 
             if (ScrollTop) Grid.AutoScrollPosition = Point.Empty;
 
@@ -749,33 +788,49 @@ namespace RBX_Alt_Manager
         /// A group exists through its accounts, so a new group is made from the selected accounts:
         /// name → accounts move there → choose a picture (Rank or own image).
         /// </summary>
+        /// <summary>
+        /// New group: name → (selected accounts move there, if you want) → picture.
+        /// It may also stay empty – then it shows "Add account" and new accounts land in it.
+        /// </summary>
         private void NewGroup()
         {
             var Selected = AccountsView.SelectedObjects.Cast<object>().OfType<Account>().ToList();
 
-            if (Selected.Count == 0)
-            {
-                ModernDialog.Show("First select the accounts that should go into the new group (click, Ctrl + click or drag a frame over the cards), then click \"New group\" again.\n\nA group always needs at least one account.", "New group", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-
-            string Name = ShowDialog($"Name of the new group ({Selected.Count} selected account{(Selected.Count == 1 ? "" : "s")} move there):", "New group");
+            string Name = ShowDialog("Name of the new group:", "New group");
             if (Name == "/UC" || string.IsNullOrWhiteSpace(Name)) return;
             Name = Name.Trim();
 
-            bool Exists = AccountsList.Any(a => string.Equals(a.Group, Name, StringComparison.OrdinalIgnoreCase));
-            if (Exists && ModernDialog.Show($"A group called \"{Name}\" already exists. Move the {Selected.Count} account(s) into it?", "New group", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
-                return;
+            string Existing = AccountsList.Select(a => a.Group).Concat(SavedGroups.All).FirstOrDefault(g => string.Equals(g, Name, StringComparison.OrdinalIgnoreCase));
+            bool Exists = Existing != null;
+            if (Exists) Name = Existing;
 
-            if (Exists) Name = AccountsList.First(a => string.Equals(a.Group, Name, StringComparison.OrdinalIgnoreCase)).Group;
+            bool Move = Selected.Count > 0 && ModernDialog.Show($"Move the {Selected.Count} selected account{(Selected.Count == 1 ? "" : "s")} into \"{Name}\"?\n\nNo = the group starts empty, you can add accounts later.", "New group", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes;
 
-            foreach (var A in Selected) A.Group = Name;
+            SavedGroups.Add(Name);
 
-            RefreshView();
-            SaveAccounts(true);
+            if (Move)
+            {
+                foreach (var A in Selected) A.Group = Name;
+                RefreshView();
+                SaveAccounts(true);
+            }
+            else
+                UpdateGroupSidebar();
+
             SetActiveGroup(Name);
 
             if (!Exists) AskGroupPicture(Name);
+        }
+
+        /// <summary>Removes a group that has no accounts (only the name – there is nothing else in it).</summary>
+        private void DeleteEmptyGroup(string Key)
+        {
+            if (AccountsList.Any(a => a.Group == Key)) return;
+
+            SavedGroups.Remove(Key);
+            GroupImages.SetOverride(Key, null);
+            SetActiveGroup(null);
+            UpdateGroupSidebar();
         }
 
         private void AskGroupPicture(string Key)
@@ -809,6 +864,7 @@ namespace RBX_Alt_Manager
             string Picture = GroupImages.GetOverride(Key);
 
             foreach (var A in AccountsList.Where(a => a.Group == Key)) A.Group = Name;
+            SavedGroups.Rename(Key, Name);
 
             if (Picture != null) { GroupImages.SetOverride(Name, Picture); GroupImages.SetOverride(Key, null); }
 
@@ -933,7 +989,7 @@ namespace RBX_Alt_Manager
             if (GroupTitleLabel == null || AccountsList == null) return;
 
             // the selected group may have been renamed or emptied
-            if (ActiveGroupKey != null && !AccountsList.Any(a => a.Group == ActiveGroupKey))
+            if (ActiveGroupKey != null && !AccountsList.Any(a => a.Group == ActiveGroupKey) && !SavedGroups.Contains(ActiveGroupKey))
             {
                 ActiveGroupKey = null;
                 GroupsSidebar?.SetActive(null);
@@ -969,7 +1025,11 @@ namespace RBX_Alt_Manager
                 new GroupSidebarItem() { Key = null, Title = "All accounts", Count = AccountsList.Count, Banned = AccountsList.Count(a => AccountRowRenderer.StateOf(a) == AccountState.Banned), NeedLogin = AccountsList.Count(a => AccountRowRenderer.StateOf(a) == AccountState.NeedsLogin) }
             };
 
-            foreach (string Key in AccountsList.Select(a => a.Group).Distinct().OrderBy(k => k, StringComparer.CurrentCulture))
+            // groups of the accounts + groups created on purpose (may be empty)
+            var Keys = AccountsList.Select(a => a.Group).Distinct().ToList();
+            foreach (string Saved in SavedGroups.All) if (!Keys.Any(k => string.Equals(k, Saved, StringComparison.OrdinalIgnoreCase))) Keys.Add(Saved);
+
+            foreach (string Key in Keys.OrderBy(k => k, StringComparer.CurrentCulture))
             {
                 var InGroup = AccountsList.Where(a => a.Group == Key).ToList();
 

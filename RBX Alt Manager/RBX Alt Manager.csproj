@@ -400,6 +400,7 @@
     <Compile Include="Classes\ServerPicker.cs" />
     <Compile Include="Classes\AccountSession.cs" />
     <Compile Include="Classes\Activities.cs" />
+    <Compile Include="Classes\SavedGroups.cs" />
     <Compile Include="AccountManager.Pages.cs">
       <DependentUpon>AccountManager.cs</DependentUpon>
       <SubType>Form</SubType>

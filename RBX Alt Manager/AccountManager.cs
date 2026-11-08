@@ -312,6 +312,7 @@ namespace RBX_Alt_Manager
 
             Menu.Items.Add(new ToolStripSeparator());
             Menu.Items.Add("Rename group…", null, (s, a) => RenameGroup(Key, e.Item.Title));
+            if (e.Item.Count == 0) Menu.Items.Add("Delete this empty group", null, (s, a) => DeleteEmptyGroup(Key));
             Menu.Items.Add($"Select all {e.Item.Count} accounts", null, (s, a) => SelectGroup(Key));
             RBX_Alt_Manager.Classes.ModernSkin.StyleMenu(Menu);
 
@@ -710,6 +711,9 @@ namespace RBX_Alt_Manager
         public void UpdateAccountView(Account account) =>
             AccountsView.InvokeIfRequired(() => AccountsView.UpdateObject(account));
 
+        /// <summary>The group that is open on the accounts page (null = all accounts). New accounts land there.</summary>
+        public static volatile string NewAccountGroup;
+
         public static Account AddAccount(string SecurityToken, string Password = "", string AccountJSON = null)
         {
             Account account = new Account(SecurityToken, AccountJSON);
@@ -734,6 +738,10 @@ namespace RBX_Alt_Manager
                 }
                 else
                 {
+                    // added while a group is open: the new account goes into that group (also into an empty, just created one)
+                    string Target = NewAccountGroup;
+                    if (!string.IsNullOrWhiteSpace(Target)) account.Group = Target;
+
                     AccountsList.Add(account);
 
                     Instance.RefreshView(account);
