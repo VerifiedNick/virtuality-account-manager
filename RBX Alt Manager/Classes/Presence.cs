@@ -47,6 +47,36 @@ namespace RBX_Alt_Manager.Classes
             return Second.IsSuccessful ? Second : Response;
         }
 
+        /// <summary>The account's own presence, asked as that account – only then Roblox includes the server (gameId).</summary>
+        public static async Task<UserPresence> OwnPresence(Account A)
+        {
+            if (A == null) return null;
+
+            try
+            {
+                RestRequest Make(string Token)
+                {
+                    var R = A.MakeRequest("v1/presence/users", Method.Post).AddJsonBody(new { userIds = new[] { A.UserID } });
+                    if (!string.IsNullOrEmpty(Token)) R.AddHeader("X-CSRF-TOKEN", Token);
+                    return R;
+                }
+
+                var Response = await PresenceClient.ExecuteAsync(Make(A.CSRFToken));
+
+                if ((int)Response.StatusCode == 403 && Response.Headers?.FirstOrDefault(h => string.Equals(h.Name, "x-csrf-token", StringComparison.OrdinalIgnoreCase))?.Value is string NewToken)
+                {
+                    A.CSRFToken = NewToken;
+                    Response = await PresenceClient.ExecuteAsync(Make(NewToken));
+                }
+
+                if (Response.IsSuccessful && JsonConvert.DeserializeObject(Response.Content) is JObject Data && Data["userPresences"] is JArray List && List.Count > 0)
+                    return List[0].ToObject<UserPresence>();
+            }
+            catch (Exception x) { Program.Logger.Warn($"[Presence] own presence of {A.Username}: {x.Message}"); }
+
+            return null;
+        }
+
         public static async Task UpdatePresence(params long[] UserIds)
         {
             if (!Utilities.IsConnectedToInternet()) return;

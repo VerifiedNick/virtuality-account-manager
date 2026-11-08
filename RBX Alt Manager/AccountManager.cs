@@ -1733,7 +1733,13 @@ namespace RBX_Alt_Manager
                 }
                 else if (Single != null)
                 {
-                    string res = await Single.JoinServer(PlaceId, VIPServer ? JobID.Text.Substring(4) : JobID.Text, false, VIPServer);
+                    string Job = string.Empty;
+                    JobID.InvokeIfRequired(() => Job = JobID.Text ?? string.Empty);
+                    string res = await Single.JoinServer(PlaceId, VIPServer ? Job.Substring(4) : Job, false, VIPServer);
+
+                    // same server: remember where this account landed, the next Join goes there too
+                    if (res.Contains("Success") && SameServerOn && !VIPServer && string.IsNullOrEmpty(Job))
+                        _ = WaitForServer(Single, PlaceId, CancellationToken.None);
 
                     if (!res.Contains("Success"))
                         ModernDialog.Show(res);
@@ -2207,6 +2213,10 @@ namespace RBX_Alt_Manager
 
         private async Task LaunchAccounts(List<Account> Accounts, long PlaceID, string JobID, bool FollowUser = false, bool VIPServer = false)
         {
+            // "same server": no Job ID given → the first account picks a server, everyone else joins exactly that one
+            bool FindServer = SameServerOn && !FollowUser && !VIPServer && string.IsNullOrEmpty(JobID);
+            bool First = true;
+
             int Delay = General.Exists("AccountJoinDelay") ? General.Get<int>("AccountJoinDelay") : 8;
 
             bool AsyncJoin = General.Get<bool>("AsyncJoin");
@@ -2227,6 +2237,14 @@ namespace RBX_Alt_Manager
 
                 await account.JoinServer(PlaceId, JobId, FollowUser, VIPServer);
                 MarkJoined(account);
+
+                if (FindServer && First && string.IsNullOrEmpty(JobId))
+                {
+                    string Server = await WaitForServer(account, PlaceId, Token.Token);
+                    if (!string.IsNullOrEmpty(Server)) JobID = Server; // the next accounts use it (unless they have their own saved server)
+                }
+
+                First = false;
 
                 if (AsyncJoin)
                 {

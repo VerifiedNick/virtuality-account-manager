@@ -664,6 +664,45 @@ namespace RBX_Alt_Manager
                 ModernDialog.Show(Result, "Join " + Target, MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
 
+        #region Same server
+
+        /// <summary>Settings → Joining: when no Job ID is given, every account joins the server of the first one.</summary>
+        private bool SameServerOn => !General.Exists("SameServer") || General.Get<bool>("SameServer");
+
+        /// <summary>
+        /// Waits until the account is in the game and returns its server (Job ID). The Job ID field is filled with it,
+        /// so every following Join – also single ones – goes to the same server. Clear the field for a new server.
+        /// </summary>
+        private async Task<string> WaitForServer(Account A, long PlaceId, CancellationToken Token)
+        {
+            for (int i = 0; i < 40 && !Token.IsCancellationRequested; i++) // up to ~2 minutes (Roblox needs a moment to load)
+            {
+                try { await Task.Delay(3000, Token); } catch (TaskCanceledException) { break; }
+
+                var P = await Presence.OwnPresence(A);
+
+                if (P != null && P.userPresenceType == UserPresenceType.InGame && !string.IsNullOrEmpty(P.gameId) && (P.placeId == PlaceId || P.rootPlaceId == PlaceId || PlaceId <= 0))
+                {
+                    string Server = P.gameId;
+                    Program.Logger.Info($"[SameServer] {A.Username} is in server {Server}");
+
+                    this.InvokeIfRequired(() =>
+                    {
+                        // only fill it if the user didn't type another server meanwhile
+                        if (string.IsNullOrWhiteSpace(JobID.Text)) JobID.Text = Server;
+                        SaveTooltip.SetToolTip(JobID, "Same server: filled automatically with the server of the first account.\nEvery Join goes here now – clear the field to join a new server.");
+                    });
+
+                    return Server;
+                }
+            }
+
+            Program.Logger.Warn($"[SameServer] could not find the server of {A.Username}");
+            return null;
+        }
+
+        #endregion
+
         #region Double join protection
 
         private readonly Dictionary<long, DateTime> LastJoined = new Dictionary<long, DateTime>();
