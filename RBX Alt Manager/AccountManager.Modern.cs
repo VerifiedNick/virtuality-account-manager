@@ -55,6 +55,7 @@ namespace RBX_Alt_Manager
             MinimumSize = new Size(1100, 700);
             MaximizeBox = true;
             BackColor = Modern.Bg;
+            Text = "Lizard Manager";
 
             // old controls that have no place in the new layout: kept (their code still runs), just never shown
             LegacyHolder = new Panel() { Name = "LegacyHolder", Visible = false, Size = new Size(10, 10) };
@@ -105,7 +106,7 @@ namespace RBX_Alt_Manager
                 using (var B = new SolidBrush(Modern.Accent))
                     G.FillRectangle(B, Px(20), Y - Sq / 2, Sq, Sq);
 
-                Modern.Text_(G, "ACCOUNT MANAGER", Modern.Font(10.5f, FontStyle.Regular, true), new Rectangle(Px(38), 0, Px(190), HeaderBar.Height), Modern.Text, TextFormatFlags.NoPadding);
+                Modern.Text_(G, "LIZARD MANAGER", Modern.Font(10.5f, FontStyle.Regular, true), new Rectangle(Px(38), 0, Px(190), HeaderBar.Height), Modern.Text, TextFormatFlags.NoPadding);
             };
 
             GameField = new FieldBox() { Caption = "Game" };
@@ -268,6 +269,10 @@ namespace RBX_Alt_Manager
             Grid.ContextRequested = (A, P) => AccountsStrip.Show(Grid, P);
             Grid.SectionTitle = GroupTitleOf;
             ListFrame.Controls.Add(Grid);
+
+            Modern.DarkScrollbars(Grid);
+            Modern.DarkScrollbars(AccountsView);
+            Modern.DarkScrollbars(GroupsSidebar);
             Grid.BringToFront(); // the list stays behind it (still used for selection, menus and the list view)
 
             AvatarCache.Changed += (s, e) => { if (IsHandleCreated && !IsDisposed) BeginInvoke((MethodInvoker)(() => Grid?.Invalidate())); };
@@ -723,6 +728,12 @@ namespace RBX_Alt_Manager
             if (string.IsNullOrEmpty(Password))
                 MessageBox.Show($"No password is saved for {A.Username}.\nThe username gets filled in, type the password yourself.", "Login", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
+            if (CleanLogin.FindBrowser() != null)
+            {
+                await LoginInRealBrowser(A.Username, Password);
+                return;
+            }
+
             if (PuppeteerSupported)
             {
                 AccountCard.Login.Enabled = false;
@@ -737,6 +748,45 @@ namespace RBX_Alt_Manager
             }
             else
                 CefBrowser.Instance.Login(A.Username, Password);
+        }
+
+        /// <summary>Login in the installed Chrome / Edge (normal window, own temporary profile). Used for "Login", "Re-login" and "Add account → Browser".</summary>
+        private async Task LoginInRealBrowser(string Username = null, string Password = null)
+        {
+            string Browser = CleanLogin.FindBrowser();
+
+            AccountCard.Login.Enabled = false;
+            AddAccountButton.Enabled = false;
+
+            try
+            {
+                var Result = await CleanLogin.Run(Browser, Username, Password);
+
+                if (Result is (string Cookie, string Pw))
+                {
+                    Account Added = await Task.Run(() => AddAccount(Cookie, Pw ?? string.Empty));
+
+                    if (Added == null)
+                        MessageBox.Show("Roblox did not accept the login cookie. Please try again.", "Login", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    else
+                    {
+                        if (Added.GetField("BanStatus") == "NeedsLogin") Added.Fields.Remove("BanStatus");
+                        Added.Fields["SessionChecked"] = DateTime.Now.ToString("yyyy-MM-dd HH:mm");
+                        SaveAccounts(true);
+                        RefreshAfterChecks();
+                    }
+                }
+            }
+            catch (Exception x)
+            {
+                Program.Logger.Error($"[Login] {x}");
+                MessageBox.Show($"The login window could not be opened.\n\n{x.Message}", "Login", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            finally
+            {
+                AccountCard.RefreshState();
+                AddAccountButton.Enabled = true;
+            }
         }
 
         private string FriendTargetName => General != null && General.Exists("FriendTarget") && !string.IsNullOrWhiteSpace(General.Get("FriendTarget")) ? General.Get("FriendTarget").Trim() : "";

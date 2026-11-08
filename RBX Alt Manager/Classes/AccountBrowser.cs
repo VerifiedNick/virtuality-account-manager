@@ -138,39 +138,17 @@ namespace RBX_Alt_Manager.Classes
                 }
             }
 
-            // Roblox's "press and hold" human check fails in the old bundled Chromium, so the installed Chrome / Edge is used
-            // when there is one (own temporary profile, your normal browser is not touched). RAMSettings.ini: UseBundledChromium=true turns this off.
-            Args.Add("--disable-blink-features=AutomationControlled");
+            var Options = new LaunchOptions { Headless = false, DefaultViewport = null, Args = Args.ToArray(), IgnoreHTTPSErrors = true };
 
-            string InstalledBrowser = AccountManager.General.Get<bool>("UseBundledChromium") ? null : FindInstalledBrowser();
-            var Options = new LaunchOptions { Headless = false, DefaultViewport = null, Args = Args.ToArray(), IgnoreHTTPSErrors = true, IgnoredDefaultArgs = new[] { "--enable-automation" } };
+            await Fetcher.DownloadAsync(BrowserFetcher.DefaultChromiumRevision);
 
-            if (InstalledBrowser != null)
-            {
-                Options.ExecutablePath = InstalledBrowser;
-
-                try { browser = (Browser)await new PuppeteerExtra().Use(new StealthPlugin()).LaunchAsync(Options); }
-                catch (Exception x)
-                {
-                    Program.Logger.Warn($"[AccountBrowser] {InstalledBrowser} could not be started, using the bundled Chromium: {x.Message}");
-                    InstalledBrowser = null;
-                    Options.ExecutablePath = null;
-                }
-            }
-
-            if (browser == null)
-            {
-                await Fetcher.DownloadAsync(BrowserFetcher.DefaultChromiumRevision);
-
-                browser = (Browser)await new PuppeteerExtra().Use(new StealthPlugin()).LaunchAsync(Options);
-            }
+            browser = (Browser)await new PuppeteerExtra().Use(new StealthPlugin()).LaunchAsync(Options);
 
             page = (Page)(await browser.PagesAsync())[0];
 
             if (Proxy != null) browser.Disconnected += (s, e) => Proxy.Dispose();
 
-            if (InstalledBrowser == null) // a real Chrome sends its own, matching user agent
-                await page.SetUserAgentAsync("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36");
+            await page.SetUserAgentAsync("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36");
 
             if (Config?.PreNavigateActions != null)
                 foreach (var action in Config.PreNavigateActions)
@@ -198,28 +176,6 @@ namespace RBX_Alt_Manager.Classes
             if (Config?.PostNavigateScripts != null)
                 foreach (var script in Config.PostNavigateScripts)
                     await page.EvaluateExpressionAsync(script);
-        }
-
-        public static string FindInstalledBrowser()
-        {
-            string Local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            string PF = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
-            string PF86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
-
-            string Custom = AccountManager.General.Exists("LoginBrowserPath") ? AccountManager.General.Get("LoginBrowserPath") : null;
-
-            foreach (string Path_ in new[]
-            {
-                Custom,
-                System.IO.Path.Combine(PF, @"Google\Chrome\Application\chrome.exe"),
-                System.IO.Path.Combine(PF86, @"Google\Chrome\Application\chrome.exe"),
-                System.IO.Path.Combine(Local, @"Google\Chrome\Application\chrome.exe"),
-                System.IO.Path.Combine(PF86, @"Microsoft\Edge\Application\msedge.exe"),
-                System.IO.Path.Combine(PF, @"Microsoft\Edge\Application\msedge.exe")
-            })
-                if (!string.IsNullOrWhiteSpace(Path_) && File.Exists(Path_)) return Path_;
-
-            return null;
         }
 
         public async Task Login(string Username = "", string Password = "", string[] Arguments = null)

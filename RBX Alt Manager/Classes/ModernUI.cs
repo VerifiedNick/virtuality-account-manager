@@ -34,6 +34,18 @@ namespace RBX_Alt_Manager.Classes
         public static readonly Color Warn = Color.FromArgb(230, 180, 80);
 
         public static float S => Program.Scale;
+
+        [System.Runtime.InteropServices.DllImport("uxtheme.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+        private static extern int SetWindowTheme(IntPtr hWnd, string pszSubAppName, string pszSubIdList);
+
+        /// <summary>Dark Windows scrollbars (Windows 10 1809+) instead of the bright default ones.</summary>
+        public static void DarkScrollbars(Control C)
+        {
+            void Apply() { try { SetWindowTheme(C.Handle, "DarkMode_Explorer", null); } catch { } }
+
+            if (C.IsHandleCreated) Apply();
+            C.HandleCreated += (s, e) => Apply();
+        }
         public static int Px(float Value) => (int)Math.Round(Value * S);
 
         private static readonly Dictionary<string, Font> Fonts = new Dictionary<string, Font>();

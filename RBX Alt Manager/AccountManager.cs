@@ -1477,6 +1477,12 @@ namespace RBX_Alt_Manager
 
         private async void LoginWithBrowser()
         {
+            if (CleanLogin.FindBrowser() != null) // normal Chrome / Edge window: Roblox's human check works there
+            {
+                await LoginInRealBrowser();
+                return;
+            }
+
             if (PuppeteerSupported)
             {
                 Add.Enabled = false;

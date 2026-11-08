@@ -396,6 +396,7 @@
     <Compile Include="Classes\AccountRowRenderer.cs" />
     <Compile Include="Classes\AccountChecks.cs" />
     <Compile Include="Classes\AvatarCache.cs" />
+    <Compile Include="Classes\CleanLogin.cs" />
     <Compile Include="Classes\AccountGrid.cs">
       <SubType>Component</SubType>
     </Compile>
