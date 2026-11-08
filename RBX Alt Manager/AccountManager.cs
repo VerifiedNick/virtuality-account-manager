@@ -85,6 +85,9 @@ namespace RBX_Alt_Manager
         private readonly static object rgSaveLock = new object();
         public event EventHandler<GameArgs> RecentGameAdded;
 
+        private GroupSidebar GroupsSidebar;
+        private const int SidebarWidth = 230;
+
         private bool IsResettingPassword;
         private bool IsDownloadingChromium;
         private bool LaunchNext;
@@ -165,7 +168,10 @@ namespace RBX_Alt_Manager
             if (!AccountControl.Exists("NexusPort")) AccountControl.Set("NexusPort", "5242");
 
             InitializeComponent();
+            SetupModernLayout();
             this.Rescale();
+
+            AccountsView.RowHeight = (int)(24 * Program.Scale);
 
             AccountsList = new List<Account>();
             SelectedAccounts = new List<Account>();
@@ -204,6 +210,12 @@ namespace RBX_Alt_Manager
                     return GroupName;
             };
 
+            AccountsView.ShowItemCountOnGroups = true;
+            AccountsView.GroupWithItemCountFormat = "{0}   ·   {1} accounts";
+            AccountsView.GroupWithItemCountSingularFormat = "{0}   ·   {1} account";
+
+            AccountsView.AfterCreatingGroups += (s, e) => UpdateGroupSidebar(e.Groups);
+
             var VCKey = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\WOW6432Node\Microsoft\VisualStudio\14.0\VC\Runtimes\X86");
 
             if (!Prompts.Exists("VCPrompted") && (VCKey == null || (VCKey is RegistryKey && VCKey.GetValue("Bld") is int VCVersion && VCVersion < 32532)))
@@ -239,6 +251,179 @@ namespace RBX_Alt_Manager
                     AddAccount(match.Value);
             }
         }
+
+        #region Group overview (sidebar + pictures)
+
+        [DllImport("user32.dll", EntryPoint = "SendMessageW")]
+        private static extern IntPtr SendListViewMessage(IntPtr hWnd, int Msg, IntPtr wParam, IntPtr lParam);
+
+        private const int LVM_SCROLL = 0x1014;
+
+        /// <summary>Makes room on the left for the group overview. Runs before Rescale(), so everything uses designer units.</summary>
+        private void SetupModernLayout()
+        {
+            int W = SidebarWidth;
+
+            ClientSize = new Size(ClientSize.Width + W, ClientSize.Height); // controls anchored to the right move with the window
+            MinimumSize = new Size(MinimumSize.Width + W, MinimumSize.Height);
+
+            foreach (Control control in Controls)
+            {
+                if (control == PasswordPanel) continue;
+
+                bool Left = control.Anchor.HasFlag(AnchorStyles.Left), Right = control.Anchor.HasFlag(AnchorStyles.Right);
+
+                if (Left && Right) { control.Left += W; control.Width -= W; }
+                else if (Left) control.Left += W;
+            }
+
+            GroupsSidebar = new GroupSidebar()
+            {
+                Name = "GroupsSidebar",
+                Location = new System.Drawing.Point(13, AccountsView.Top),
+                Size = new Size(W - 6, AccountsView.Height),
+                Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left,
+                TabIndex = 19
+            };
+
+            GroupsSidebar.GroupClicked += (s, e) => ScrollToGroup(e.Item.Key);
+            GroupsSidebar.GroupDoubleClicked += (s, e) => SelectGroup(e.Item.Key);
+            GroupsSidebar.GroupRightClicked += GroupsSidebar_GroupRightClicked;
+
+            Controls.Add(GroupsSidebar);
+            SaveTooltip.SetToolTip(GroupsSidebar, "Click: jump to group · Double click: select all accounts of the group · Right click: change picture");
+
+            AccountsView.Font = new Font("Segoe UI", 9.25f);
+            Username.Width = 150;
+        }
+
+        private void UpdateGroupSidebar(IList<OLVGroup> Groups)
+        {
+            if (GroupsSidebar == null || Groups == null) return;
+
+            var Items = new List<GroupSidebarItem>
+            {
+                new GroupSidebarItem() { Key = null, Title = "All accounts", Count = AccountsList?.Count ?? 0 }
+            };
+
+            foreach (OLVGroup group in Groups)
+            {
+                string Key = group.Key as string;
+
+                Items.Add(new GroupSidebarItem()
+                {
+                    Key = Key,
+                    Title = (Group.GroupKeyToTitleConverter?.Invoke(Key) ?? Key ?? string.Empty).Trim().TrimStart(':', '-', '.', ' '),
+                    Count = AccountsList?.Count(a => a.Group == Key) ?? 0
+                });
+            }
+
+            GroupsSidebar.SetGroups(Items);
+        }
+
+        private void ScrollToGroup(string Key)
+        {
+            var Groups = AccountsView.OLVGroups;
+
+            if (Groups == null || Groups.Count == 0) return;
+
+            OLVGroup Target = Key == null ? Groups.FirstOrDefault(g => g.Items.Count > 0) : Groups.FirstOrDefault(g => (g.Key as string) == Key);
+
+            if (Target == null || Target.Items.Count == 0) return;
+
+            if (Target.Collapsed) Target.Collapsed = false;
+
+            // Scroll to the very end first, then back up to the group: that puts the group at the top of the list instead of the bottom
+            OLVGroup LastGroup = Groups.LastOrDefault(g => g.Items.Count > 0 && !g.Collapsed);
+
+            LastGroup?.Items[LastGroup.Items.Count - 1].EnsureVisible();
+            Target.Items[0].EnsureVisible();
+
+            SendListViewMessage(AccountsView.Handle, LVM_SCROLL, IntPtr.Zero, (IntPtr)(-(int)(AccountsView.RowHeight * 2))); // show the group header too
+        }
+
+        private void SelectGroup(string Key)
+        {
+            List<object> Accounts = AccountsList.Where(a => Key == null || a.Group == Key).Cast<object>().ToList();
+
+            if (Accounts.Count == 0) return;
+
+            AccountsView.SelectedObjects = Accounts;
+            AccountsView.Focus();
+
+            ScrollToGroup(Key);
+        }
+
+        private void GroupsSidebar_GroupRightClicked(object sender, GroupSidebarEventArgs e)
+        {
+            if (e.Item.Key == null) return;
+
+            string Key = e.Item.Key;
+            var Menu = new ContextMenuStrip();
+
+            Menu.Items.Add("Change picture (choose Rank)...", null, (s, a) => ChooseGroupPicture(Key, e.Item.Title));
+
+            if (GroupImages.GetOverride(Key) != null)
+                Menu.Items.Add("Use automatic picture", null, (s, a) => GroupImages.SetOverride(Key, null));
+
+            Menu.Items.Add(new ToolStripSeparator());
+            Menu.Items.Add($"Select all {e.Item.Count} accounts", null, (s, a) => SelectGroup(Key));
+
+            Menu.Closed += (s, a) => BeginInvoke((MethodInvoker)Menu.Dispose);
+            Menu.Show(GroupsSidebar, e.Location);
+        }
+
+        private void ChooseGroupPicture(string Key, string Title)
+        {
+            if (!GroupImages.EntryListReady)
+            {
+                MessageBox.Show("The entry list is still loading (or there is no internet connection). Try again in a moment.", "Roblox Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            GroupPetInfo Current = GroupImages.Resolve(Key);
+            string Suggestion = GroupImages.GetOverride(Key) ?? Current.EntryName ?? GroupImages.StripGroupPrefix(Key);
+
+            while (true)
+            {
+                string Input = ShowDialog($"Which Rank should be the picture for \"{Title}\"?\nExample: Rank Sample Name   or   Golden Rank Pony", "Group Picture", Suggestion);
+
+                if (Input == "/UC" || string.IsNullOrWhiteSpace(Input)) return;
+
+                if (GroupImages.IsKnownEntry(Input))
+                {
+                    GroupImages.SetOverride(Key, Input);
+                    return;
+                }
+
+                List<string> Matches = GroupImages.FindEntries(Input);
+
+                if (Matches.Count == 0)
+                {
+                    MessageBox.Show($"No entry called \"{Input}\" was found. Check the spelling, e.g. \"Rank Sample Name\".", "Group Picture", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    Suggestion = Input;
+                    continue;
+                }
+
+                if (Matches.Count == 1)
+                {
+                    GroupImages.SetOverride(Key, Matches[0]);
+                    return;
+                }
+
+                MessageBox.Show("Did you mean one of these?\n\n" + string.Join("\n", Matches), "Group Picture", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                Suggestion = Matches[0];
+            }
+        }
+
+        private void GroupImages_ImagesChanged(object sender, EventArgs e)
+        {
+            if (!IsHandleCreated || IsDisposed) return;
+
+            BeginInvoke((MethodInvoker)(() => GroupsSidebar?.Invalidate()));
+        }
+
+        #endregion
 
         private readonly static string SaveFilePath = Path.Combine(Environment.CurrentDirectory, "AccountData.json");
         private readonly static string RecentGamesFilePath = Path.Combine(Environment.CurrentDirectory, "RecentGames.json"); // i shouldve combined everything that isnt accountdata into one file but oh well im too lazy : |
@@ -635,6 +820,9 @@ namespace RBX_Alt_Manager
         {
             PasswordPanel.Dock = DockStyle.Fill;
 
+            GroupImages.ImagesChanged += GroupImages_ImagesChanged;
+            GroupImages.Initialize();
+
             string AFN = Path.Combine(Directory.GetCurrentDirectory(), "Auto Update.exe");
             string AU2FN = Path.Combine(Directory.GetCurrentDirectory(), "AU.exe");
 
@@ -838,6 +1026,28 @@ namespace RBX_Alt_Manager
             AccountsView.CellEditActivation = ObjectListView.CellEditActivateMode.DoubleClick;
 
             Controls.ApplyTheme();
+
+            foreach (Control control in Controls) // modern touch: flat buttons light up under the mouse
+            {
+                if (!(control is Button button)) continue;
+
+                // Windows draws "System" style buttons itself and ignores their icon (settings gear, discord, ...), so icon buttons stay flat
+                if (button.Image != null && button.FlatStyle == FlatStyle.System)
+                {
+                    button.FlatStyle = FlatStyle.Flat;
+                    button.FlatAppearance.BorderSize = 0;
+                    button.BackColor = ThemeEditor.FormsBackground;
+                    button.UseVisualStyleBackColor = false;
+                }
+
+                if (button.FlatStyle == FlatStyle.Flat)
+                {
+                    button.FlatAppearance.MouseOverBackColor = GroupSidebar.Blend(ThemeEditor.ButtonsBackground, ThemeEditor.ButtonsForeground, 0.12f);
+                    button.FlatAppearance.MouseDownBackColor = GroupSidebar.Blend(ThemeEditor.ButtonsBackground, ThemeEditor.ButtonsForeground, 0.22f);
+                }
+            }
+
+            GroupsSidebar?.Invalidate();
 
             afform.ApplyTheme();
             ServerListForm.ApplyTheme();
@@ -1304,7 +1514,24 @@ namespace RBX_Alt_Manager
             }
         }
 
-        private async void Add_Click(object sender, EventArgs e)
+        private void Add_Click(object sender, EventArgs e) => ShowAddAccountDialog();
+
+        private void ShowAddAccountDialog()
+        {
+            using var Dialog = new AddAccountDialog(AddAccountsStrip.Items.Contains(bulkUserPassToolStripMenuItem), AddAccountsStrip.Items.Contains(customURLJSToolStripMenuItem));
+
+            if (Dialog.ShowDialog(this) != DialogResult.OK) return;
+
+            switch (Dialog.Choice)
+            {
+                case AddAccountChoice.Browser: LoginWithBrowser(); break;
+                case AddAccountChoice.Cookie: byCookieToolStripMenuItem_Click(this, EventArgs.Empty); break;
+                case AddAccountChoice.UserPass: bulkUserPassToolStripMenuItem_Click(this, EventArgs.Empty); break;
+                case AddAccountChoice.Custom: customURLJSToolStripMenuItem_Click(this, EventArgs.Empty); break;
+            }
+        }
+
+        private async void LoginWithBrowser()
         {
             if (PuppeteerSupported)
             {
@@ -1382,9 +1609,9 @@ namespace RBX_Alt_Manager
 
         private void DLChromiumLabel_Click(object sender, EventArgs e) => DownloadProgressBar_Click(sender, e);
 
-        private void manualToolStripMenuItem_Click(object sender, EventArgs e) => Add.PerformClick();
+        private void manualToolStripMenuItem_Click(object sender, EventArgs e) => LoginWithBrowser();
 
-        private void addAccountsToolStripMenuItem_Click(object sender, EventArgs e) => Add.PerformClick();
+        private void addAccountsToolStripMenuItem_Click(object sender, EventArgs e) => ShowAddAccountDialog();
 
         private void byCookieToolStripMenuItem_Click(object sender, EventArgs e)
         {

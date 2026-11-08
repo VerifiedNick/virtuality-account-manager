@@ -1,0 +1,10 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!-- Linux-only build wrapper (not part of the app). Imports the real project unchanged and only
+       replaces the Windows-only "copy NuGet output files" task with a plain file copy of the same files. -->
+  <Import Project="RBX Alt Manager.csproj" />
+  <Target Name="CollectNugetOutputFiles">
+    <ItemGroup>
+      <NugetOutputFiles Include="$(MSBuildProjectDirectory)/../packages/libsodium-net.0.10.0/output/**/*.*" />
+    </ItemGroup>
+  </Target>
+</Project>
