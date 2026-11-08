@@ -321,7 +321,7 @@ namespace RBX_Alt_Manager
             Grid.SetSelection = List => { AccountsView.SelectedObjects = List; Grid.Invalidate(); };
             Grid.JoinClicked = A => { SelectedAccount = A; JoinServer_Click(Grid, EventArgs.Empty); };
             Grid.JoinMainClicked = JoinMainWith;
-            Grid.ReloginClicked = A => LoginSelectedAccount();
+            Grid.ReloginClicked = A => LoginAccount(A); // the card knows its account (the right card updates a moment later)
             Grid.ContextRequested = (A, P) => AccountsStrip.Show(Grid, P);
             Grid.SectionTitle = GroupTitleOf;
             ListFrame.Controls.Add(Grid);
