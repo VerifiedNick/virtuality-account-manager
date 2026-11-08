@@ -74,9 +74,17 @@ namespace RBX_Alt_Manager.Classes
             RestResponse Session = await Send(AccountManager.UsersClient, () => Account.MakeRequest("v1/users/authenticated", Method.Get), Token);
             string Body = Session.Content ?? string.Empty;
 
-            if (Session.StatusCode == HttpStatusCode.Unauthorized) { Info.Result = BanCheckResult.NeedsLogin; return Info; }
+            if (Session.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                // second opinion the way RAM itself checks a session: auth ticket endpoint answers 403 + token for a valid login, 401 for an expired one
+                RestResponse Ticket = await Send(AccountManager.AuthClient, () => Account.MakeRequest("v1/authentication-ticket/", Method.Post).AddHeader("Referer", "https://www.roblox.com/"), Token);
+
+                Program.Logger.Info($"[SessionCheck] {Account.Username}: users/authenticated {(int)Session.StatusCode}, authentication-ticket {(int)Ticket.StatusCode}");
+
+                if (Ticket.StatusCode != HttpStatusCode.Forbidden) { Info.Result = BanCheckResult.NeedsLogin; return Info; }
+            }
             if (Session.StatusCode != HttpStatusCode.OK && Body.IndexOf("moderated", StringComparison.OrdinalIgnoreCase) >= 0) { Info.Result = BanCheckResult.TempBanned; return Info; }
-            if (Session.StatusCode != HttpStatusCode.OK) return Info;
+            if (Session.StatusCode != HttpStatusCode.OK && Session.StatusCode != HttpStatusCode.Unauthorized) return Info;
 
             Info.Result = BanCheckResult.Ok;
 

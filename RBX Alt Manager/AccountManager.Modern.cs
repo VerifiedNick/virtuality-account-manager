@@ -55,7 +55,7 @@ namespace RBX_Alt_Manager
             MinimumSize = new Size(1100, 700);
             MaximizeBox = true;
             BackColor = Modern.Bg;
-            Text = "Lizard Manager";
+            Text = "Lizer Manager";
 
             // old controls that have no place in the new layout: kept (their code still runs), just never shown
             LegacyHolder = new Panel() { Name = "LegacyHolder", Visible = false, Size = new Size(10, 10) };
@@ -106,7 +106,7 @@ namespace RBX_Alt_Manager
                 using (var B = new SolidBrush(Modern.Accent))
                     G.FillRectangle(B, Px(20), Y - Sq / 2, Sq, Sq);
 
-                Modern.Text_(G, "LIZARD MANAGER", Modern.Font(10.5f, FontStyle.Regular, true), new Rectangle(Px(38), 0, Px(190), HeaderBar.Height), Modern.Text, TextFormatFlags.NoPadding);
+                Modern.Text_(G, "LIZER MANAGER", Modern.Font(10.5f, FontStyle.Regular, true), new Rectangle(Px(38), 0, Px(190), HeaderBar.Height), Modern.Text, TextFormatFlags.NoPadding);
             };
 
             GameField = new FieldBox() { Caption = "Game" };
