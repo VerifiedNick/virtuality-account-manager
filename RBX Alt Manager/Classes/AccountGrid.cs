@@ -169,8 +169,6 @@ namespace RBX_Alt_Manager.Classes
                         Modern.Text_(G, Title, TF, new Rectangle(X, H.Y, H.Width, H.Height), Modern.Text, TextFormatFlags.NoPadding);
                         X += TW + Modern.Px(8);
 
-                        int TagW = Modern.VariantTag(G, Variant, X, H.Y + (H.Height - Modern.Px(14)) / 2, Modern.Px(14));
-                        if (TagW > 0) X += TagW + Modern.Px(8);
 
                         Modern.Text_(G, $"{Count}", Modern.Font(8.5f), new Rectangle(X, H.Y, Modern.Px(60), H.Height), Modern.Sub, TextFormatFlags.NoPadding);
 

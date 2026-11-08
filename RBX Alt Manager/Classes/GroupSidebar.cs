@@ -221,8 +221,7 @@ namespace RBX_Alt_Manager.Classes
                 {
                     int CW = TextRenderer.MeasureText(CountText, CountFont, Size.Empty, TextFormatFlags.NoPadding).Width + (int)(12 * S);
 
-                    if (BadgeLeft - (CountR.X + CW) > (int)(52 * S))
-                        Modern.VariantTag(G, GroupImages.Resolve(Item.Key).Variant, CountR.X + CW, CountR.Y + (CountR.Height - (int)(13 * S)) / 2, (int)(13 * S));
+
                 }
             }
         }

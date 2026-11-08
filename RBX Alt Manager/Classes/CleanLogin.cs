@@ -183,7 +183,8 @@ namespace RBX_Alt_Manager.Classes
 
             Cdp Page = null;
             string PageId = null;
-            bool Filled = false;
+            bool Filled = false, Clicked = false;
+            DateTime FilledAt = DateTime.MinValue;
             string TypedPassword = Password;
             DateTime Ends = DateTime.Now.AddMinutes(15);
 
@@ -222,7 +223,32 @@ namespace RBX_Alt_Manager.Classes
                             var set=function(id,v){{var e=document.getElementById(id);if(!e||!v)return false;var s=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;s.call(e,v);e.dispatchEvent(new Event('input',{{bubbles:true}}));return true;}};
                             var a=set('login-username',{Js(Username)});var b=set('login-password',{Js(Password)});return (a||b||{(string.IsNullOrEmpty(Username) ? "true" : "false")})?'ok':'wait';}})()");
 
-                        if (R == "ok") { Filled = true; Status?.Invoke("Filled in – press \"Log in\" and do the check"); }
+                        if (R == "ok") { Filled = true; FilledAt = DateTime.Now; Status?.Invoke("Filled in"); }
+                    }
+
+                    // press "Log in" once by itself (only when both username and password were filled in); the human check / 2-step code stays with you
+                    if (Filled && !Clicked && !string.IsNullOrEmpty(Username) && !string.IsNullOrEmpty(Password) && Url.Contains("/login") && (DateTime.Now - FilledAt).TotalMilliseconds > 600)
+                    {
+                        string Rect = await Page.Eval(@"(function(){
+                            var b=document.getElementById('login-button');
+                            if(!b){var bs=[].slice.call(document.querySelectorAll('button'));b=bs.find(function(x){var t=(x.textContent||'').trim().toLowerCase();return (t==='anmelden'||t==='log in'||t==='login'||t==='sign in')&&!x.closest('header')&&x.offsetParent!==null;});}
+                            if(!b||b.disabled)return '';
+                            b.scrollIntoView({block:'center'});var r=b.getBoundingClientRect();return Math.round(r.left+r.width/2)+','+Math.round(r.top+r.height/2);})()");
+
+                        if (!string.IsNullOrEmpty(Rect) && Rect.Contains(","))
+                        {
+                            var XY = Rect.Split(',');
+                            var Mouse = new { x = double.Parse(XY[0], System.Globalization.CultureInfo.InvariantCulture), y = double.Parse(XY[1], System.Globalization.CultureInfo.InvariantCulture) };
+
+                            await Page.Call("Input.dispatchMouseEvent", new { type = "mouseMoved", Mouse.x, Mouse.y });
+                            await Task.Delay(80);
+                            await Page.Call("Input.dispatchMouseEvent", new { type = "mousePressed", Mouse.x, Mouse.y, button = "left", clickCount = 1 });
+                            await Task.Delay(60);
+                            await Page.Call("Input.dispatchMouseEvent", new { type = "mouseReleased", Mouse.x, Mouse.y, button = "left", clickCount = 1 });
+
+                            Clicked = true;
+                            Status?.Invoke("Logging in – do the human check / 2-step code if Roblox asks");
+                        }
                     }
 
                     // remember a password typed by hand (new accounts)
