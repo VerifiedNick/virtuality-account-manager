@@ -433,7 +433,15 @@ namespace RBX_Alt_Manager
             private readonly Timer Anim = new Timer() { Interval = 15 };
             private DateTime PopStart = DateTime.MinValue, ShakeStart = DateTime.MinValue, SuccessStart = DateTime.MinValue;
             private int LastLength;
-            public bool Error, Success, Busy;
+            /// <summary>Idle → (typing) → Checking → Wrong (shake, red) or the lock screen closes. Typing again leaves Wrong.</summary>
+            public enum PinState { Idle, Checking, Wrong }
+
+            private PinState State_ = PinState.Idle;
+            public PinState State { get => State_; set { State_ = value; Start(); } }
+
+            private bool Error => State_ == PinState.Wrong;
+            private bool Busy => State_ == PinState.Checking;
+            private const bool Success = false;
 
             public PinField(TextBox Box)
             {
@@ -454,7 +462,7 @@ namespace RBX_Alt_Manager
                 {
                     if (Input.Text.Length > LastLength) PopStart = DateTime.Now;
                     LastLength = Input.Text.Length;
-                    if (Error && Input.Text.Length > 0) Error = false;
+                    if (State_ == PinState.Wrong && Input.Text.Length > 0) State_ = PinState.Idle;
                     Start();
                 };
                 Input.GotFocus += (s, e) => Invalidate();
@@ -470,7 +478,7 @@ namespace RBX_Alt_Manager
 
             private void Start() { if (!Anim.Enabled) Anim.Start(); Invalidate(); }
 
-            public void Shake() { Error = true; Busy = false; ShakeStart = DateTime.Now; Start(); }
+            public void Shake() { State_ = PinState.Wrong; ShakeStart = DateTime.Now; Start(); }
 
             protected override void OnClick(EventArgs e) { base.OnClick(e); Input.Focus(); Start(); }
 
@@ -598,7 +606,7 @@ namespace RBX_Alt_Manager
 
                 if (Show)
                 {
-                    Pin.Error = Pin.Success = Pin.Busy = false;
+                    Pin.State = PinField.PinState.Idle;
                     PinMessage.Text = string.Empty;
                     LayoutCard();
                     LockCard.BringToFront();
@@ -626,7 +634,7 @@ namespace RBX_Alt_Manager
 
             if (Pin.Input.Text.Length == 0) { PinFailed("Type your PIN first."); return; }
 
-            Pin.Busy = true;
+            Pin.State = PinField.PinState.Checking;
             UnlockModern.Text = "Unlocking…";
             UnlockModern.Enabled = false;
             LockCard.Refresh();
@@ -636,7 +644,7 @@ namespace RBX_Alt_Manager
             {
                 UnlockModern.Text = "Unlock";
                 UnlockModern.Enabled = true;
-                Pin.Busy = false;
+                if (Pin.State == PinField.PinState.Checking) Pin.State = PinField.PinState.Idle;
             }
         }
 

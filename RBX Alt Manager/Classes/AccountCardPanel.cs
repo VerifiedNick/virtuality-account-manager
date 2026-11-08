@@ -103,7 +103,7 @@ namespace RBX_Alt_Manager.Classes
             else
             {
                 Login.Enabled = Single != null && !LoginBusy_;
-                Login.Text = Single != null && Single.GetField("BanStatus") == "NeedsLogin" ? "Log in again" : "Login";
+                Login.Text = Single != null && AccountSession.NeedsLogin(Single) ? "Log in again" : "Login";
             }
 
             if (LoginBusy_) Login.Text = "Login window open…";

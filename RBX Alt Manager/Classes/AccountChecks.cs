@@ -105,25 +105,21 @@ namespace RBX_Alt_Manager.Classes
         /// <summary>Writes a session result onto the account (Fields only, nothing else is touched).</summary>
         public static void Apply(Account Account, SessionInfo Info)
         {
-            string Now = DateTime.Now.ToString("yyyy-MM-dd HH:mm");
-
             switch (Info.Result)
             {
-                case BanCheckResult.NeedsLogin: if (Account.GetField("BanStatus") != "Banned") Account.Fields["BanStatus"] = "NeedsLogin"; break;
-                case BanCheckResult.TempBanned: Account.Fields["BanStatus"] = "TempBanned"; break;
-                case BanCheckResult.Ok:
-                    if (Account.GetField("BanStatus") == "NeedsLogin" || Account.GetField("BanStatus") == "TempBanned") Account.Fields.Remove("BanStatus");
-                    break;
-                default: return;
+                case BanCheckResult.NeedsLogin: AccountSession.Set(Account, SessionStatus.NeedsLogin, StatusSource.SessionCheck, "session ended"); break;
+                case BanCheckResult.TempBanned: AccountSession.Set(Account, SessionStatus.TempBanned, StatusSource.SessionCheck, "temporary ban"); break;
+                case BanCheckResult.Ok: AccountSession.Set(Account, SessionStatus.Active, StatusSource.SessionCheck, "session valid"); break;
+                default: return; // unknown (network): nothing changes
             }
 
-            Account.Fields["SessionChecked"] = Now;
+            AccountSession.Stamp(Account, "SessionChecked");
 
             if (Info.Email != null)
             {
                 Account.Fields["Email"] = Info.Email;
                 Account.Fields["EmailVerified"] = Info.Verified == true ? "true" : "false";
-                Account.Fields["EmailChecked"] = Now;
+                AccountSession.Stamp(Account, "EmailChecked");
             }
         }
 

@@ -18,10 +18,11 @@ namespace RBX_Alt_Manager.Classes
 
         public static AccountState StateOf(Account A)
         {
-            string Ban = A.GetField("BanStatus");
-
-            if (Ban == "Banned" || Ban == "TempBanned") return AccountState.Banned;
-            if (Ban == "NeedsLogin") return AccountState.NeedsLogin;
+            switch (AccountSession.Of(A))
+            {
+                case SessionStatus.Banned: case SessionStatus.TempBanned: return AccountState.Banned;
+                case SessionStatus.NeedsLogin: return AccountState.NeedsLogin;
+            }
 
             if (AccountManager.General != null && AccountManager.General.Get<bool>("ShowPresence") && A.Presence != null)
                 switch (A.Presence.userPresenceType)
@@ -38,7 +39,7 @@ namespace RBX_Alt_Manager.Classes
         {
             switch (State)
             {
-                case AccountState.Banned: return A.GetField("BanStatus") == "TempBanned" ? "Banned (temp)" : "Banned";
+                case AccountState.Banned: return AccountSession.Of(A) == SessionStatus.TempBanned ? "Banned (temp)" : "Banned";
                 case AccountState.NeedsLogin: return "Not logged in";
                 case AccountState.InGame: return "In game";
                 case AccountState.InStudio: return "In Studio";

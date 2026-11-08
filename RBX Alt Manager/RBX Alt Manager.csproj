@@ -398,6 +398,8 @@
     <Compile Include="Classes\ModernDialog.cs" />
     <Compile Include="Classes\Backups.cs" />
     <Compile Include="Classes\ServerPicker.cs" />
+    <Compile Include="Classes\AccountSession.cs" />
+    <Compile Include="Classes\Activities.cs" />
     <Compile Include="AccountManager.Pages.cs">
       <DependentUpon>AccountManager.cs</DependentUpon>
       <SubType>Form</SubType>

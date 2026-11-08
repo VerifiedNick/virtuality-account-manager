@@ -126,6 +126,22 @@ namespace RBX_Alt_Manager
                 int CX = X, CY = H / 2 + Px(2), CH = Px(16);
                 Font F = Modern.Font(8.25f);
 
+                // something running in the background (login window, group login, ban check, joining …): show it instead of the counts
+                var Jobs = Activities.Running;
+
+                if (Jobs.Count > 0)
+                {
+                    var Job = Jobs[Jobs.Count - 1];
+                    int Dot = Px(7);
+                    bool On = (DateTime.Now.Millisecond / 400) % 2 == 0;
+
+                    using (var B = new SolidBrush(On ? Modern.AccentText : Modern.Accent)) G.FillRectangle(B, CX, CY + (CH - Dot) / 2, Dot, Dot);
+
+                    string T = Job.Text + (Jobs.Count > 1 ? $"  +{Jobs.Count - 1}" : string.Empty);
+                    Modern.Text_(G, T, F, new Rectangle(CX + Dot + Px(6), CY, W - Dot - Px(6), CH), Modern.AccentText, TextFormatFlags.NoPadding);
+                    return;
+                }
+
                 var Stats = new List<(int Count, string Long, string Short, Color C)>
                 {
                     (InGame, "in game", "in game", Modern.Online),
@@ -193,6 +209,34 @@ namespace RBX_Alt_Manager
             SaveTooltip.SetToolTip(SettingsIcon, "Settings");
 
             HeaderBar.Controls.AddRange(new Control[] { GameField, JobField, JoinSelectedButton, ServerListIcon, RecentGamesIcon, AccountControlIcon, SettingsIcon });
+
+            // background jobs: the header shows them (blinking square) on every page; click there to stop one
+            var Pulse = new System.Windows.Forms.Timer() { Interval = 400 };
+            Pulse.Tick += (s, e) => { if (Activities.Any) HeaderBar.Invalidate(new Rectangle(0, 0, SideBar.Width, HeaderBar.Height)); else Pulse.Stop(); };
+
+            Activities.Changed += () =>
+            {
+                if (!IsHandleCreated || IsDisposed) return;
+                BeginInvoke((MethodInvoker)(() => { HeaderBar.Invalidate(); if (Activities.Any) Pulse.Start(); }));
+            };
+
+            HeaderBar.MouseClick += (s, e) =>
+            {
+                if (e.X > SideBar.Width || !Activities.Any) return;
+
+                var Menu = new ContextMenuStrip();
+
+                foreach (var Job in Activities.Running)
+                {
+                    var J = Job;
+                    var Item = Menu.Items.Add($"Stop: {J.Text}", null, (a, b) => { try { J.Cancel?.Cancel(); } catch { } });
+                    Item.Enabled = J.Cancel != null;
+                }
+
+                ModernSkin.StyleMenu(Menu);
+                Menu.Closed += (a, b) => BeginInvoke((MethodInvoker)Menu.Dispose);
+                Menu.Show(HeaderBar, e.Location);
+            };
 
             HeaderBar.Layout += (s, e) =>
             {
@@ -997,7 +1041,8 @@ namespace RBX_Alt_Manager
 
         private void LoginSelectedAccount() => LoginAccount(AccountCard.Single ?? AccountCard.NextToLogin);
 
-        private bool LoginRunning;
+        /// <summary>A login window is open (only one at a time).</summary>
+        private bool LoginRunning => Activities.IsRunning(ActivityKind.Login);
 
         private async void LoginAccount(Account A) => await LoginAccountAsync(A);
 
@@ -1049,6 +1094,7 @@ namespace RBX_Alt_Manager
             int Done = 0, Failed = 0;
 
             LoginGroupButton.Style = ModernButtonStyle.Danger;
+            var Job = Activities.Begin(ActivityKind.LoginQueue, $"Log in group {GroupTitleOf(Group)}", LoginQueueCts);
 
             try
             {
@@ -1058,6 +1104,7 @@ namespace RBX_Alt_Manager
                     if (AccountRowRenderer.StateOf(A) != AccountState.NeedsLogin) continue; // logged in meanwhile
 
                     LoginGroupButton.Text = $"Stop · {i + 1}/{Queue.Count}";
+                    Activities.Update(Job, $"Log in group {GroupTitleOf(Group)} · {i + 1}/{Queue.Count}");
                     SaveTooltip.SetToolTip(LoginGroupButton, $"Logging in {A.Username} – click to stop the queue");
                     CenterPane.PerformLayout();
 
@@ -1069,12 +1116,14 @@ namespace RBX_Alt_Manager
                         for (int s = LoginQueueDelay; s > 0 && !Token.IsCancellationRequested; s--)
                         {
                             LoginGroupButton.Text = $"Stop · next in {s} s";
+                            Activities.Update(Job, $"Log in group {GroupTitleOf(Group)} · next in {s} s");
                             try { await Task.Delay(1000, Token); } catch (TaskCanceledException) { }
                         }
                 }
             }
             finally
             {
+                Activities.End(Job);
                 bool Stopped = Token.IsCancellationRequested;
                 LoginQueueCts = null;
                 UpdateLoginGroupButton();
@@ -1127,7 +1176,7 @@ namespace RBX_Alt_Manager
             string Browser = CleanLogin.FindBrowser();
             string Profile = CleanLogin.ProfileFor(UserId);
 
-            LoginRunning = true;
+            var Job = Activities.Begin(ActivityKind.Login, string.IsNullOrEmpty(Username) ? "Login window open" : $"Login window: {Username}");
             AccountCard.LoginBusy = true;
             AddAccountButton.Enabled = false;
 
@@ -1145,8 +1194,7 @@ namespace RBX_Alt_Manager
                     {
                         CleanLogin.AdoptProfile(Profile, Added.UserID);
 
-                        if (Added.GetField("BanStatus") == "NeedsLogin") Added.Fields.Remove("BanStatus");
-                        Added.Fields["SessionChecked"] = DateTime.Now.ToString("yyyy-MM-dd HH:mm");
+                        AccountSession.LoggedIn(Added, "login window");
 
                         // read the e-mail right away now that the account is logged in again
                         try { AccountChecks.Apply(Added, await AccountChecks.CheckSession(Added, true, CancellationToken.None)); } catch { }
@@ -1163,7 +1211,7 @@ namespace RBX_Alt_Manager
             }
             finally
             {
-                LoginRunning = false;
+                Activities.End(Job);
                 AccountCard.LoginBusy = false;
                 AddAccountButton.Enabled = true;
             }
@@ -1192,6 +1240,7 @@ namespace RBX_Alt_Manager
             FriendTokenSource = new CancellationTokenSource();
             var Token = FriendTokenSource.Token;
             AccountCard.AddFriendBusy = true;
+            var Job = Activities.Begin(ActivityKind.FriendRequests, $"Friend requests to {Target}", FriendTokenSource);
 
             int Sent = 0, Already = 0, Done = 0;
             var Problems = new List<string>();
@@ -1202,6 +1251,7 @@ namespace RBX_Alt_Manager
                 for (int i = 0; i < Accounts.Count; i++)
                 {
                     AccountCard.AddFriend.Text = Accounts.Count > 1 ? $"{i + 1}/{Accounts.Count} · Stop" : "Sending…";
+                    Activities.Update(Job, $"Friend requests to {Target} · {i + 1}/{Accounts.Count}");
 
                     var (Result, Message) = await AccountChecks.SendFriendRequest(Accounts[i], TargetId, Token);
                     Done++;
@@ -1222,6 +1272,7 @@ namespace RBX_Alt_Manager
             catch (Exception x) { Problems.Add(x.Message); Program.Logger.Error($"[AddFriend] {x}"); }
             finally
             {
+                Activities.End(Job);
                 FriendTokenSource.Dispose();
                 FriendTokenSource = null;
                 AccountCard.AddFriendBusy = false;
@@ -1252,6 +1303,7 @@ namespace RBX_Alt_Manager
             var Sessions = new ConcurrentDictionary<Account, AccountChecks.SessionInfo>();
 
             CheckBansButton.Text = "Checking… · Stop";
+            var Job = Activities.Begin(ActivityKind.BanCheck, "Checking bans + logins", BanTokenSource);
 
             try
             {
@@ -1262,25 +1314,27 @@ namespace RBX_Alt_Manager
                 // 2) every other account: is it still logged in (+ e-mail)
                 var ToCheck = Accounts.Where(a => BannedSet == null || !BannedSet.Contains(a.UserID)).ToList();
 
-                await RunSessionChecks(ToCheck, Sessions, Token, (Done, Total) => CheckBansButton.Text = $"{Done}/{Total} · Stop");
+                await RunSessionChecks(ToCheck, Sessions, Token, (Done, Total) => { CheckBansButton.Text = $"{Done}/{Total} · Stop"; Activities.Update(Job, $"Checking bans + logins · {Done}/{Total}"); });
             }
             catch (OperationCanceledException) { Stopped = true; }
+            catch (Exception x) { Program.Logger.Error($"[BanCheck] {x}"); }
 
             string Now = DateTime.Now.ToString("yyyy-MM-dd HH:mm");
 
             if (BannedSet != null)
                 foreach (var A in Accounts)
                 {
-                    if (BannedSet.Contains(A.UserID)) A.Fields["BanStatus"] = "Banned";
-                    else if (A.GetField("BanStatus") == "Banned") A.Fields.Remove("BanStatus"); // unbanned again
+                    if (BannedSet.Contains(A.UserID)) AccountSession.Set(A, SessionStatus.Banned, StatusSource.BanCheck, "terminated");
+                    else AccountSession.Set(A, SessionStatus.Active, StatusSource.BanCheck, "not banned any more"); // only does something when it was Banned
 
-                    A.Fields["BanChecked"] = Now;
+                    AccountSession.Stamp(A, "BanChecked");
                 }
 
             foreach (var Pair in Sessions) AccountChecks.Apply(Pair.Key, Pair.Value);
 
             SaveAccounts(true);
 
+            Activities.End(Job);
             BanTokenSource.Dispose();
             BanTokenSource = null;
             CheckBansButton.Text = "Check for bans";
@@ -1348,7 +1402,7 @@ namespace RBX_Alt_Manager
 
             await Task.Delay(4000);
 
-            var Due = AccountsList.Where(a => a.GetField("BanStatus") != "Banned" && !AccountChecks.CheckedWithin(a, "SessionChecked", TimeSpan.FromHours(2))).ToList();
+            var Due = AccountsList.Where(a => AccountSession.Of(a) != SessionStatus.Banned && !AccountChecks.CheckedWithin(a, "SessionChecked", TimeSpan.FromHours(2))).ToList();
 
             if (Due.Count == 0 || BanTokenSource != null) return;
 

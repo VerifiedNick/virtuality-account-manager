@@ -728,7 +728,7 @@ namespace RBX_Alt_Manager
                     if (!string.IsNullOrEmpty(Password)) exists.Password = Password; // never wipe a saved password (e.g. cookie re-import)
                     exists.LastUse = DateTime.Now;
 
-                    if (exists.GetField("BanStatus") == "NeedsLogin") exists.Fields.Remove("BanStatus"); // fresh login
+                    AccountSession.LoggedIn(exists, "new cookie"); // fresh login
 
                     Instance.RefreshView(exists);
                 }
@@ -935,7 +935,7 @@ namespace RBX_Alt_Manager
 
                         foreach (var Account in AccountsList.ToList())
                         {
-                            if (Account.GetField("NoCookieRefresh") == "true" || Account.GetField("BanStatus") == "Banned" || Account.GetField("BanStatus") == "NeedsLogin") continue;
+                            if (Account.GetField("NoCookieRefresh") == "true" || AccountSession.Of(Account) != SessionStatus.Active) continue;
                             if ((DateTime.Now - Account.LastUse).TotalDays <= 7 || (DateTime.Now - Account.LastAttemptedRefresh).TotalDays < 1) continue;
 
                             Account.LastAttemptedRefresh = DateTime.Now;
@@ -2247,10 +2247,14 @@ namespace RBX_Alt_Manager
             }
 
             int Index = 0;
+            var Job = Activities.Begin(RBX_Alt_Manager.Classes.ActivityKind.Joining, $"Joining {Accounts.Count} accounts", Token);
 
+            try
+            {
             foreach (Account account in Accounts)
             {
                 Index++;
+                Activities.Update(Job, $"Joining {Index}/{Accounts.Count} · {account.Username}");
 
                 if (Token.IsCancellationRequested) break;
 
@@ -2302,6 +2306,8 @@ namespace RBX_Alt_Manager
 
                 LaunchNext = false;
             }
+            }
+            finally { Activities.End(Job); }
 
             LaunchNext = false;
 
