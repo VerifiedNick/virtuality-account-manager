@@ -645,6 +645,29 @@ namespace RBX_Alt_Manager.Classes
             return F;
         }
 
+        /// <summary>Replaces a drop-down list by a button with a menu (same look as all other buttons). The combo box stays hidden and keeps working.</summary>
+        public static ModernButton MenuFor(ComboBox Combo)
+        {
+            var Menu = new ContextMenuStrip();
+            var B = new ModernButton() { Menu = Menu, SplitMenu = false, Bold = false };
+
+            void Refresh() => B.Text = Combo.SelectedIndex >= 0 ? Combo.Items[Combo.SelectedIndex].ToString() : "Choose…";
+
+            for (int i = 0; i < Combo.Items.Count; i++)
+            {
+                int Index = i;
+                Menu.Items.Add(Combo.Items[i].ToString(), null, (s, e) => { Combo.SelectedIndex = Index; Refresh(); });
+            }
+
+            Combo.SelectedIndexChanged += (s, e) => Refresh();
+            Combo.Visible = false;
+            Combo.Parent?.Controls.Add(B);
+
+            StyleMenu(Menu);
+            Refresh();
+            return B;
+        }
+
         [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern IntPtr SendMessage(IntPtr hWnd, int Msg, IntPtr wParam, string lParam);
 
         public static void SetCue(TextBox T, string Cue)

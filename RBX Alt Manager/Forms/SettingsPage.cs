@@ -290,8 +290,9 @@ namespace RBX_Alt_Manager.Forms
 
                 foreach (var R in Rows)
                 {
-                    R.SetBounds(G, Y, W, R.Height);
-                    Y += R.Height;
+                    int RH = R is SettingRow SR ? SR.HeightFor(W) : R.Height;
+                    R.SetBounds(G, Y, W, RH);
+                    Y += RH;
                 }
 
                 AutoScrollMinSize = new Size(0, Y - AutoScrollPosition.Y + G);
@@ -310,13 +311,23 @@ namespace RBX_Alt_Manager.Forms
                 Tag = "NoScaling";
                 DoubleBuffered = true;
 
-                Title = new ModernLabel() { Text = T, Points = 9.75f, Bold = true, Color = Modern.Text };
-                Desc = new ModernLabel() { Text = D ?? string.Empty, Points = 8.5f, Color = Modern.Sub };
+                Title = new ModernLabel() { Text = T, Points = 10.5f, Bold = true, Color = Modern.Text };
+                Desc = new ModernLabel() { Text = D ?? string.Empty, Points = 9f, Color = Modern.Sub, Wrap = true };
 
                 Controls.Add(Title);
                 Controls.Add(Desc);
 
                 Height = string.IsNullOrEmpty(D) ? Modern.Px(54) : Modern.Px(66);
+            }
+
+            private int DescHeight(int TW) =>
+                string.IsNullOrWhiteSpace(Desc.Text) ? 0 : TextRenderer.MeasureText(Desc.Text, Modern.Font(9f), new Size(Math.Max(Modern.Px(80), TW), 0), TextFormatFlags.WordBreak | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix).Height;
+
+            /// <summary>Row height for a width: long descriptions wrap instead of being cut off.</summary>
+            public int HeightFor(int W)
+            {
+                int TW = W - Modern.Px(InputWidth) - Modern.Px(24), DH = DescHeight(TW);
+                return DH == 0 ? Modern.Px(56) : Math.Max(Modern.Px(66), Modern.Px(14) + Modern.Px(22) + Modern.Px(2) + DH + Modern.Px(14));
             }
 
             protected override void OnLayout(LayoutEventArgs levent)
@@ -327,16 +338,16 @@ namespace RBX_Alt_Manager.Forms
                 int IW = Modern.Px(InputWidth), IH = Input is ModernToggle ? Modern.Px(22) : ModernSkin.Row;
                 Input.SetBounds(Width - IW, (Height - IH) / 2, IW, IH);
 
-                int TW = Width - IW - Modern.Px(24);
-                bool HasDesc = !string.IsNullOrEmpty(Desc.Text);
+                int TW = Width - IW - Modern.Px(24), DH = DescHeight(TW);
 
-                if (HasDesc)
+                if (DH > 0)
                 {
-                    Title.SetBounds(0, Height / 2 - Modern.Px(20), TW, Modern.Px(20));
-                    Desc.SetBounds(0, Height / 2 + Modern.Px(1), TW, Modern.Px(18));
+                    int Block = Modern.Px(22) + Modern.Px(2) + DH, Top = (Height - Block) / 2;
+                    Title.SetBounds(0, Top, TW, Modern.Px(22));
+                    Desc.SetBounds(0, Top + Modern.Px(24), TW, DH + Modern.Px(2));
                 }
                 else
-                    Title.SetBounds(0, (Height - Modern.Px(20)) / 2, TW, Modern.Px(20));
+                    Title.SetBounds(0, (Height - Modern.Px(22)) / 2, TW, Modern.Px(22));
             }
 
             protected override void OnPaint(PaintEventArgs e)

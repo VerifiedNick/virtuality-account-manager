@@ -586,6 +586,8 @@ namespace RBX_Alt_Manager.Classes
         public Color Color { get; set; } = Modern.Text;
         public bool Upper { get; set; }
         public bool Center { get; set; }
+        /// <summary>Text may use several lines.</summary>
+        public bool Wrap { get; set; }
 
         public ModernLabel()
         {
@@ -600,7 +602,10 @@ namespace RBX_Alt_Manager.Classes
         {
             e.Graphics.Clear(Parent?.BackColor ?? Modern.Bg);
             Modern.Prepare(e.Graphics);
-            Modern.Text_(e.Graphics, Upper ? Text?.ToUpperInvariant() : Text, Modern.Font(Points, FontStyle.Regular, Bold), ClientRectangle, Color, TextFormatFlags.NoPadding | (Center ? TextFormatFlags.HorizontalCenter : TextFormatFlags.Left));
+            if (Wrap)
+                TextRenderer.DrawText(e.Graphics, Upper ? Text?.ToUpperInvariant() : Text, Modern.Font(Points, FontStyle.Regular, Bold), ClientRectangle, Color, TextFormatFlags.NoPadding | TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix | (Center ? TextFormatFlags.HorizontalCenter : TextFormatFlags.Left));
+            else
+                Modern.Text_(e.Graphics, Upper ? Text?.ToUpperInvariant() : Text, Modern.Font(Points, FontStyle.Regular, Bold), ClientRectangle, Color, TextFormatFlags.NoPadding | (Center ? TextFormatFlags.HorizontalCenter : TextFormatFlags.Left));
         }
     }
 }

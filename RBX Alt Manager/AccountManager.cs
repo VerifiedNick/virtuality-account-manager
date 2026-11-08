@@ -2183,16 +2183,12 @@ namespace RBX_Alt_Manager
 
             ControlForm = new AccountControl();
             ControlForm.ApplyTheme();
+            ControlForm.GetSelectedAccounts = () => AccountsView.SelectedObjects.Cast<object>().OfType<Account>().ToList();
         }
 
         private void LaunchNexus_Click(object sender, EventArgs e)
         {
-            if (ControlForm == null)
-            {
-                ControlForm = new AccountControl();
-                ControlForm.ApplyTheme();
-            }
-
+            StartNexusQuietly();
             OpenPage("control");
         }
 

@@ -1,4 +1,5 @@
 using RBX_Alt_Manager.Classes;
+using RBX_Alt_Manager.Nexus;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -16,6 +17,25 @@ namespace RBX_Alt_Manager.Forms
         private ModernLabel CommandCaption, ScriptCaption, OutputCaption, ScriptHint;
         private FieldBox PlaceBox, JobBox, CommandBox;
         private LinePanel AccountsFrame, OutputFrame;
+        private ModernButton AddSelectedButton;
+
+        /// <summary>The accounts selected on the accounts page (set by the main window).</summary>
+        public Func<List<Account>> GetSelectedAccounts = () => new List<Account>();
+
+        /// <summary>Adds accounts to account control (replaces dragging them over from the old main window).</summary>
+        public void AddAccounts(IEnumerable<Account> List)
+        {
+            foreach (var A in List)
+            {
+                if (A == null || Accounts.Exists(x => x.LinkedAccount == A)) continue;
+
+                var C = new ControlledAccount(A);
+                Accounts.Add(C);
+                AccountsView.AddObject(C);
+            }
+
+            SaveAccounts();
+        }
 
         public void UseModernLayout()
         {
@@ -46,6 +66,15 @@ namespace RBX_Alt_Manager.Forms
             foreach (var C in new Control[] { ScriptTabs }) { ScriptLayoutPanel.Controls.Remove(C); ControlPage.Controls.Add(C); C.Dock = DockStyle.None; }
             foreach (var C in new Control[] { OutputPanel, ClearOutputButton, SaveOutputToFileCheck }) { OutputFlowPanel.Controls.Remove(C); C.Dock = DockStyle.None; }
             ScriptLayoutPanel.Visible = OutputFlowPanel.Visible = false;
+
+            AddSelectedButton = new ModernButton() { Text = "Add the selected accounts", Icon = IconKind.Plus };
+            AddSelectedButton.Click += (s, e) =>
+            {
+                var Sel = GetSelectedAccounts();
+                if (Sel.Count == 0) { ModernDialog.Show("Select accounts on the Accounts page first (click / Ctrl + click / drag a frame), then come back here.", "Account control", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
+                AddAccounts(Sel);
+            };
+            ControlPage.Controls.Add(AddSelectedButton);
 
             AccountsFrame = ModernSkin.Frame(AccountsView);
             AccountsFrame.Parent?.Controls.Remove(AccountsFrame);
@@ -138,6 +167,10 @@ namespace RBX_Alt_Manager.Forms
             };
 
             AutoCloseType.DropDownStyle = ComboBoxStyle.DropDownList;
+            var AutoCloseMenu = ModernSkin.MenuFor(AutoCloseType);
+            for (int i = 0; i < Rows.Length; i++) if (Rows[i].Value == AutoCloseType) Rows[i].Value = AutoCloseMenu;
+
+            foreach (var L in new Label[] { RLLabel, LDLabel, PortLabel, label8, ACLabel, MaxInstanceLabel }) L.TextAlign = ContentAlignment.MiddleLeft;
 
             SettingsTab.Resize += (s, e) =>
             {
@@ -164,6 +197,7 @@ namespace RBX_Alt_Manager.Forms
 
             // ---------- Help ----------
             foreach (var L in new[] { label4, label5, label6, label7 }) { L.AutoSize = false; L.Anchor = AnchorStyles.Top | AnchorStyles.Left; }
+            label4.Text = "Add accounts: select them on the Accounts page, open Account control and click \"Add the selected accounts\".";
             NexusDL.Text = "Download Nexus.lua";
             NexusDocsButton.Text = "Open the documentation";
             NexusDL.Anchor = NexusDocsButton.Anchor = AnchorStyles.Top | AnchorStyles.Left;
@@ -198,18 +232,36 @@ namespace RBX_Alt_Manager.Forms
             ScriptHint.Visible = ScriptTabs.SelectedIndex == 0;
         }
 
-        /// <summary>Code editor in the app colors (comments grey, strings purple) instead of the bright default ones.</summary>
+        private static readonly FastColoredTextBoxNS.TextStyle CodeComment = new FastColoredTextBoxNS.TextStyle(new SolidBrush(Color.FromArgb(125, 125, 135)), null, FontStyle.Italic);
+        private static readonly FastColoredTextBoxNS.TextStyle CodeString = new FastColoredTextBoxNS.TextStyle(new SolidBrush(Color.FromArgb(196, 170, 255)), null, FontStyle.Regular);
+        private static readonly FastColoredTextBoxNS.TextStyle CodeNumber = new FastColoredTextBoxNS.TextStyle(new SolidBrush(Color.FromArgb(230, 180, 80)), null, FontStyle.Regular);
+        private static readonly FastColoredTextBoxNS.TextStyle CodeKeyword = new FastColoredTextBoxNS.TextStyle(new SolidBrush(Color.FromArgb(139, 92, 246)), null, FontStyle.Bold);
+        private static readonly FastColoredTextBoxNS.TextStyle CodeCall = new FastColoredTextBoxNS.TextStyle(new SolidBrush(Color.FromArgb(120, 190, 255)), null, FontStyle.Regular);
+
+        /// <summary>
+        /// Lua colors in the app palette. The built-in Lua highlighter resets its own (green / red) colors on every change,
+        /// so the editor runs as "Custom" language and colors the text here.
+        /// </summary>
         private static void DarkCode(FastColoredTextBoxNS.FastColoredTextBox Box)
         {
             try
             {
-                var H = Box.SyntaxHighlighter;
-                H.CommentStyle = new FastColoredTextBoxNS.TextStyle(new SolidBrush(Modern.Sub), null, FontStyle.Italic);
-                H.StringStyle = new FastColoredTextBoxNS.TextStyle(new SolidBrush(Modern.AccentText), null, FontStyle.Regular);
-                H.NumberStyle = new FastColoredTextBoxNS.TextStyle(new SolidBrush(Color.FromArgb(230, 180, 80)), null, FontStyle.Regular);
-                H.KeywordStyle = new FastColoredTextBoxNS.TextStyle(new SolidBrush(Color.FromArgb(120, 170, 255)), null, FontStyle.Regular);
-                H.FunctionsStyle = new FastColoredTextBoxNS.TextStyle(new SolidBrush(Color.FromArgb(110, 210, 200)), null, FontStyle.Regular);
-                Box.OnSyntaxHighlight(new FastColoredTextBoxNS.TextChangedEventArgs(Box.Range));
+                Box.Language = FastColoredTextBoxNS.Language.Custom;
+                Box.ForeColor = Modern.Text;
+                Box.CommentPrefix = "--";
+
+                void Paint(FastColoredTextBoxNS.Range R)
+                {
+                    R.ClearStyle(CodeComment, CodeString, CodeNumber, CodeKeyword, CodeCall);
+                    R.SetStyle(CodeComment, @"--.*$", System.Text.RegularExpressions.RegexOptions.Multiline);
+                    R.SetStyle(CodeString, "\"(?:\\\\.|[^\"\\\\])*\"|'(?:\\\\.|[^'\\\\])*'");
+                    R.SetStyle(CodeNumber, @"\b\d+(\.\d+)?\b");
+                    R.SetStyle(CodeKeyword, @"\b(and|break|do|else|elseif|end|false|for|function|if|in|local|nil|not|or|repeat|return|then|true|until|while)\b");
+                    R.SetStyle(CodeCall, @"\b[A-Za-z_][A-Za-z0-9_]*(?=\s*\()");
+                }
+
+                Box.TextChanged += (s, e) => Paint(Box.Range);
+                Paint(Box.Range);
             }
             catch { }
         }
@@ -232,7 +284,8 @@ namespace RBX_Alt_Manager.Forms
 
             // left: the controlled accounts
             int ListW = Math.Max(Modern.Px(260), (W - G * 3) * 2 / 5);
-            AccountsFrame.SetBounds(G, G, ListW, Hh - G * 2);
+            AddSelectedButton.SetBounds(G, G, ListW, H);
+            AccountsFrame.SetBounds(G, G + H + Gap, ListW, Hh - G * 2 - H - Gap);
 
             // right: one column of actions
             int X = AccountsFrame.Right + G, RW = W - X - G, Y = G;

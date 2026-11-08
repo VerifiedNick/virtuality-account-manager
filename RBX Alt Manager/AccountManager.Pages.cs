@@ -229,7 +229,15 @@ namespace RBX_Alt_Manager
                 Nav = () => ControlForm.PageTabs.TabPages.Cast<TabPage>().Select(t => t.Text).ToList(),
                 ActiveNav = () => ControlForm.PageTabs.SelectedIndex,
                 SelectNav = i => { ControlForm.PageTabs.SelectedIndex = i; UpdatePageHeading(); },
-                Heading = () => ("Account control", ControlForm.PageTabs.SelectedTab?.Text ?? string.Empty)
+                Heading = () =>
+                {
+                    switch (ControlForm.PageTabs.SelectedIndex)
+                    {
+                        case 1: return ("Account control · Settings", "How the connected accounts are kept in the game.");
+                        case 2: return ("Account control · Help", "How to connect your accounts with Nexus.");
+                        default: return ("Account control", "Accounts connected through Nexus. Check them on the left, then send a command or a script.");
+                    }
+                }
             };
         }
 
