@@ -17,7 +17,7 @@ namespace RBX_Alt_Manager.Classes
 
             if (VersionFolder == null || !VersionFolder.Exists) { Program.Logger.Error("Can't patch ClientAppSettings, folder doesn't exist"); return; }
             if (!VersionFolder.Name.StartsWith("version-")) { Program.Logger.Error("Can't patch ClientAppSettings, folder doesn't start with 'version-'"); return; }
-            if (!File.Exists(Path.Combine(VersionFolder.FullName, "RobloxPlayerLauncher.exe"))) { Program.Logger.Error("Can't patch ClientAppSettings, RobloxPlayerBeta.exe not found"); return; }
+            if (!File.Exists(Path.Combine(VersionFolder.FullName, "RobloxPlayerBeta.exe")) && !File.Exists(Path.Combine(VersionFolder.FullName, "RobloxPlayerLauncher.exe"))) { Program.Logger.Error("Can't patch ClientAppSettings, RobloxPlayerBeta.exe not found"); return; }
 
             DirectoryInfo SettingsFolder = new DirectoryInfo(Path.Combine(VersionFolder.FullName, "ClientSettings"));
 

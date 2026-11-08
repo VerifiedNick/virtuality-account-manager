@@ -2200,6 +2200,7 @@ namespace RBX_Alt_Manager
             }
 
             int Index = 0;
+            var Failed = new List<string>();
             var Job = Activities.Begin(RBX_Alt_Manager.Classes.ActivityKind.Joining, $"Joining {Accounts.Count} accounts", Token);
 
             try
@@ -2238,8 +2239,17 @@ namespace RBX_Alt_Manager
                     }
                 }
 
-                await account.JoinServer(PlaceId, JobId, FollowUser, VIPServer);
-                MarkJoined(account);
+                string JoinResult = await account.JoinServer(PlaceId, JobId, FollowUser, VIPServer);
+
+                if (!string.IsNullOrEmpty(JoinResult) && JoinResult.StartsWith("ERROR"))
+                {
+                    // the launch did not happen (session expired, no Roblox …): say so instead of silently moving on, and never wait for a window that will not come
+                    Program.Logger.Warn($"[Join] {account.Username}: {JoinResult.Replace('\n', ' ')}");
+                    Failed.Add(account.Username);
+                    LaunchNext = true;
+                }
+                else
+                    MarkJoined(account);
 
                 if (FindServer && First && string.IsNullOrEmpty(JobId))
                 {
@@ -2253,16 +2263,22 @@ namespace RBX_Alt_Manager
 
                 if (AsyncJoin)
                 {
-                    while (!LaunchNext)
+                    // waits for the launcher of this account, but never longer than 30 s and not after "Stop"
+                    for (int Waited = 0; !LaunchNext && !Token.IsCancellationRequested && Waited < 600; Waited++)
                         await Task.Delay(50);
                 }
                 else
-                    await Task.Delay(Delay * 1000);
+                    try { await Task.Delay(Delay * 1000, Token.Token); } catch (TaskCanceledException) { }
 
                 LaunchNext = false;
             }
             }
             finally { Activities.End(Job); }
+
+            if (Failed.Count > 0)
+                Instance.InvokeIfRequired(() => ModernDialog.Show(
+                    $"{Failed.Count} account{(Failed.Count == 1 ? "" : "s")} could not be started:\n\n{string.Join(", ", Failed.Take(10))}{(Failed.Count > 10 ? " …" : "")}\n\nUsually their login has expired – use Login / Re-login for them and try again.",
+                    "Join", MessageBoxButtons.OK, MessageBoxIcon.Warning));
 
             LaunchNext = false;
 

@@ -69,11 +69,25 @@ namespace RBX_Alt_Manager.Classes
             try { using (var E = new EventWaitHandle(false, EventResetMode.ManualReset, ReleaseEvent)) E.Set(); } catch { }
         }
 
+        private static FileStream TakeCookieFile()
+        {
+            try
+            {
+                string FN = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"Roblox\LocalStorage\RobloxCookies.dat");
+
+                if (!File.Exists(FN) || File.Exists(Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), "no773fix.txt"))) return null;
+
+                return new FileStream(FN, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+            }
+            catch { return null; } // still in use – tried again in 3 s
+        }
+
         /// <summary>Holder side (the "-holdroblox" process). No window, no log, no data files.</summary>
         public static void Run()
         {
             Mutex Lock = null, Marker = null;
             bool Owned = false;
+            FileStream CookieLock = null;
 
             try
             {
@@ -95,6 +109,10 @@ namespace RBX_Alt_Manager.Classes
 
                     while (!Release.WaitOne(3000))
                     {
+                        // error 773 fix: nobody else may write Roblox's cookie file while several accounts run. The manager takes it when it starts;
+                        // if Roblox was already open then (or the manager restarted), the holder takes it as soon as it is free – and keeps it through restarts.
+                        if (CookieLock == null) CookieLock = TakeCookieFile();
+
                         bool Manager = Process.GetProcessesByName(Me.ProcessName).Any(p => p.Id != Me.Id);
                         bool Roblox = Process.GetProcessesByName("RobloxPlayerBeta").Length > 0;
 
@@ -105,6 +123,7 @@ namespace RBX_Alt_Manager.Classes
             catch { }
             finally
             {
+                try { CookieLock?.Dispose(); } catch { }
                 if (Owned) try { Lock.ReleaseMutex(); } catch { }
                 Marker?.Dispose();
                 Lock?.Dispose();
