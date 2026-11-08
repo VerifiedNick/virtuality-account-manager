@@ -248,7 +248,7 @@ namespace RBX_Alt_Manager.Classes
             {
                 string Text = Item.Key == null ? "ALL" : Initials(Item.Title);
 
-                TextRenderer.DrawText(G, Text, InitialsFont, R, Item.Key == null ? Modern.Accent : Modern.Text2, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding);
+                TextRenderer.DrawText(G, Text, InitialsFont, R, Item.Key == null ? Modern.AccentText : Modern.Text2, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding);
             }
         }
 

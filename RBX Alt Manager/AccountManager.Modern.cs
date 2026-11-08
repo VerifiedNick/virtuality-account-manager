@@ -135,7 +135,7 @@ namespace RBX_Alt_Manager
                     CX += Dot + Px(5) + TW + Px(10);
                 }
 
-                Stat(Online, "online", Modern.Accent);
+                Stat(Online, "online", Modern.AccentText);
                 Stat(Login, "login", Modern.Warn);
                 Stat(Banned, "banned", Modern.Danger);
 

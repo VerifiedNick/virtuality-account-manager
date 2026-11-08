@@ -26,8 +26,10 @@ namespace RBX_Alt_Manager.Classes
         public static readonly Color Text2 = Color.FromArgb(190, 190, 190);
         public static readonly Color Sub = Color.FromArgb(128, 128, 128);
         public static readonly Color Faint = Color.FromArgb(80, 80, 80);
-        public static readonly Color Accent = ColorTranslator.FromHtml("#A3E635");
-        public static readonly Color AccentHover = ColorTranslator.FromHtml("#B5F04F");
+        // purple accent to match the Virtuality logo (fills / bars / borders), lighter tone for text on black
+        public static readonly Color Accent = ColorTranslator.FromHtml("#7C3AED");
+        public static readonly Color AccentHover = ColorTranslator.FromHtml("#8B4DF5");
+        public static readonly Color AccentText = ColorTranslator.FromHtml("#A78BFA");
         public static readonly Color Danger = Color.FromArgb(240, 100, 100);
         public static readonly Color DangerBg = Color.FromArgb(24, 8, 8);
         public static readonly Color DangerLine = Color.FromArgb(70, 24, 24);
@@ -304,11 +306,11 @@ namespace RBX_Alt_Manager.Classes
             {
                 case ModernButtonStyle.Primary:
                     Fill = Down ? Modern.Accent : (Hovered ? Modern.AccentHover : Modern.Accent);
-                    Border = Fill; Fore = Color.Black;
+                    Border = Fill; Fore = Color.White;
                     break;
                 case ModernButtonStyle.Outline:
                     Fill = Down ? Modern.Pressed : (Hovered ? Modern.Hover : Parent_);
-                    Border = Modern.Accent; Fore = Modern.Accent;
+                    Border = Modern.Accent; Fore = Modern.AccentText;
                     break;
                 case ModernButtonStyle.Danger:
                     Fill = Down ? Modern.DangerLine : (Hovered ? Modern.DangerBg : Parent_);
@@ -326,7 +328,7 @@ namespace RBX_Alt_Manager.Classes
 
             if (!Enabled)
             {
-                Fill = Style == ModernButtonStyle.Primary ? Color.FromArgb(40, 48, 28) : Parent_;
+                Fill = Style == ModernButtonStyle.Primary ? Color.FromArgb(34, 24, 54) : Parent_;
                 Border = Modern.Line;
                 Fore = Modern.Faint;
             }

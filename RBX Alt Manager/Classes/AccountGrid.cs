@@ -282,7 +282,7 @@ namespace RBX_Alt_Manager.Classes
         {
             Color Fill = Off ? Modern.Panel : (Hover ? Modern.Hover : Modern.Field);
             Color Border = Off ? Modern.Line : (Accent ? Modern.Accent : Modern.FieldBorder);
-            Color Fore = Off ? Modern.Faint : (Accent ? Modern.Accent : Modern.Text);
+            Color Fore = Off ? Modern.Faint : (Accent ? Modern.AccentText : Modern.Text);
 
             Modern.Box(G, R, Fill, Border);
             Modern.Text_(G, Text, Modern.Font(8.75f, FontStyle.Regular, true), R, Fore, TextFormatFlags.HorizontalCenter);
