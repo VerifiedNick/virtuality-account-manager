@@ -34,6 +34,9 @@ namespace RBX_Alt_Manager.Classes
         public static readonly Color DangerBg = Color.FromArgb(24, 8, 8);
         public static readonly Color DangerLine = Color.FromArgb(70, 24, 24);
         public static readonly Color Warn = Color.FromArgb(230, 180, 80);
+        public static readonly Color Online = Color.FromArgb(74, 222, 128);      // in game: green, 12:1 on black
+        public static readonly Color OnlineLine = Color.FromArgb(36, 120, 70);
+        public static readonly Color OnlineBg = Color.FromArgb(6, 20, 11);
 
         public static float S => Program.Scale;
 

@@ -53,7 +53,7 @@ namespace RBX_Alt_Manager.Classes
             {
                 case AccountState.Banned: return Modern.Danger;
                 case AccountState.NeedsLogin: return Modern.Warn;
-                case AccountState.InGame: return Modern.AccentText;
+                case AccountState.InGame: return Modern.Online;
                 case AccountState.Online: return Modern.Text;
                 case AccountState.InStudio: return Modern.Text2;
                 default: return Modern.Faint;

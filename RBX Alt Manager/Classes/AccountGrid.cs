@@ -240,20 +240,26 @@ namespace RBX_Alt_Manager.Classes
             AccountState State = AccountRowRenderer.StateOf(A);
             bool Banned = State == AccountState.Banned;
             bool Login = State == AccountState.NeedsLogin;
+            bool InGame = State == AccountState.InGame;
 
-            Color Fill = Sel ? Modern.Selected : (Hover ? Color.FromArgb(14, 14, 14) : Modern.Panel);
-            Color Border = Sel ? Modern.Accent : (Banned ? Modern.DangerLine : (Login ? Color.FromArgb(110, 84, 20) : Modern.Line));
+            Color Fill = Sel ? Modern.Selected : (Hover ? Color.FromArgb(14, 14, 14) : (InGame ? Modern.OnlineBg : Modern.Panel));
+            Color Border = Sel ? Modern.Accent : (Banned ? Modern.DangerLine : (Login ? Color.FromArgb(110, 84, 20) : (InGame ? Modern.OnlineLine : Modern.Line)));
 
             Modern.Box(G, R, Fill, Border);
 
-            if (Banned || Login)
-                using (var B = new SolidBrush(Banned ? Modern.Danger : Modern.Warn))
+            // in game: green frame all around (also when selected, inside the purple one)
+            if (InGame)
+                using (var P_ = new Pen(Sel ? Modern.OnlineLine : Modern.Online))
+                    G.DrawRectangle(P_, R.X + (Sel ? 1 : 0), R.Y + (Sel ? 1 : 0), R.Width - (Sel ? 3 : 1), R.Height - (Sel ? 3 : 1));
+
+            if (Banned || Login || InGame)
+                using (var B = new SolidBrush(Banned ? Modern.Danger : (Login ? Modern.Warn : Modern.Online)))
                     G.FillRectangle(B, R.X, R.Y, Modern.Px(3), R.Height);
 
             int P = Modern.Px(12), Av = Modern.Px(56);
             var AvR = new Rectangle(R.X + P, R.Y + P, Av, Av);
 
-            Modern.Box(G, AvR, Modern.Field, Banned ? Modern.DangerLine : (Login ? Modern.Warn : Modern.FieldBorder));
+            Modern.Box(G, AvR, Modern.Field, Banned ? Modern.DangerLine : (Login ? Modern.Warn : (InGame ? Modern.Online : Modern.FieldBorder)));
 
             Image Pic = AvatarCache.Get(A.UserID);
 

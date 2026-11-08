@@ -107,12 +107,13 @@ namespace RBX_Alt_Manager
                 var List = AccountsList;
                 if (List == null) return;
 
-                int Total = List.Count, Online = 0, Banned = 0, Login = 0;
+                int Total = List.Count, Online = 0, InGame = 0, Banned = 0, Login = 0;
 
                 foreach (var A in List)
                     switch (AccountRowRenderer.StateOf(A))
                     {
-                        case AccountState.Online: case AccountState.InGame: case AccountState.InStudio: Online++; break;
+                        case AccountState.InGame: InGame++; break;
+                        case AccountState.Online: case AccountState.InStudio: Online++; break;
                         case AccountState.Banned: Banned++; break;
                         case AccountState.NeedsLogin: Login++; break;
                     }
@@ -137,7 +138,8 @@ namespace RBX_Alt_Manager
                     CX += Dot + Px(5) + TW + Px(10);
                 }
 
-                Stat(Online, "online", Modern.AccentText);
+                Stat(InGame, "in game", Modern.Online);
+                Stat(Online, "online", Modern.Text2);
                 Stat(Login, "login", Modern.Warn);
                 Stat(Banned, "banned", Modern.Danger);
 
