@@ -1739,6 +1739,13 @@ namespace RBX_Alt_Manager
                 {
                     string Job = string.Empty;
                     JobID.InvokeIfRequired(() => Job = JobID.Text ?? string.Empty);
+
+                    // the remembered server is full → a new one with room (only for the "same server" mode, not for typed VIP links)
+                    if (SameServerOn && !VIPServer && !string.IsNullOrEmpty(Job) && await ServerPicker.HasRoom(PlaceId, Job, CancellationToken.None) == false)
+                    {
+                        string Next = await ServerPicker.PickFor(PlaceId, 1, CancellationToken.None);
+                        if (!string.IsNullOrEmpty(Next)) { Program.Logger.Info($"[SameServer] {Job} is full, joining {Next}"); Job = Next; ShowSameServer(Next); }
+                    }
                     string res = await Single.JoinServer(PlaceId, VIPServer ? Job.Substring(4) : Job, false, VIPServer);
 
                     // same server: remember where this account landed, the next Join goes there too
@@ -2226,8 +2233,25 @@ namespace RBX_Alt_Manager
             bool AsyncJoin = General.Get<bool>("AsyncJoin");
             CancellationTokenSource Token = LauncherToken;
 
+            // same server, step 1: a server where everybody fits → all join it directly (no waiting for the first one)
+            if (FindServer && Accounts.Count > 1)
+            {
+                string Picked = await ServerPicker.PickFor(PlaceID, Accounts.Count, Token.Token);
+
+                if (!string.IsNullOrEmpty(Picked))
+                {
+                    JobID = Picked;
+                    FindServer = false;
+                    ShowSameServer(Picked);
+                }
+            }
+
+            int Index = 0;
+
             foreach (Account account in Accounts)
             {
+                Index++;
+
                 if (Token.IsCancellationRequested) break;
 
                 long PlaceId = PlaceID;
@@ -2237,6 +2261,24 @@ namespace RBX_Alt_Manager
                 {
                     if (!string.IsNullOrEmpty(account.GetField("SavedPlaceId")) && long.TryParse(account.GetField("SavedPlaceId"), out long PID)) PlaceId = PID;
                     if (!string.IsNullOrEmpty(account.GetField("SavedJobId"))) JobId = account.GetField("SavedJobId");
+                }
+
+                // same server, step 2: the shared server got full meanwhile → everyone still to come moves on to a new one with room
+                if (SameServerOn && !FollowUser && !VIPServer && !string.IsNullOrEmpty(JobID) && JobId == JobID && Index > 1)
+                {
+                    ServerPicker.Forget(PlaceId);
+
+                    if (await ServerPicker.HasRoom(PlaceId, JobId, Token.Token) == false)
+                    {
+                        string Next = await ServerPicker.PickFor(PlaceId, Accounts.Count - Index + 1, Token.Token);
+
+                        if (!string.IsNullOrEmpty(Next))
+                        {
+                            Program.Logger.Info($"[SameServer] {JobId} is full, the remaining accounts go to {Next}");
+                            JobID = JobId = Next;
+                            ShowSameServer(Next);
+                        }
+                    }
                 }
 
                 await account.JoinServer(PlaceId, JobId, FollowUser, VIPServer);

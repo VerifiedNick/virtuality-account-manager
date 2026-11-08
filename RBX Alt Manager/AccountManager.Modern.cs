@@ -808,6 +808,16 @@ namespace RBX_Alt_Manager
             return null;
         }
 
+        /// <summary>Puts the shared server into the Job ID field (so every later Join uses it) and explains it in the tooltip.</summary>
+        private void ShowSameServer(string Server)
+        {
+            this.InvokeIfRequired(() =>
+            {
+                JobID.Text = Server;
+                SaveTooltip.SetToolTip(JobID, "Same server: all accounts join this server.\nIf it gets full, a new one with room is picked automatically. Clear the field for a new server.");
+            });
+        }
+
         #endregion
 
         #region Double join protection
