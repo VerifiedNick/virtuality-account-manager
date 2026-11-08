@@ -926,24 +926,49 @@ namespace RBX_Alt_Manager
 
             if (General.Get<bool>("AutoCookieRefresh"))
             {
+                // The old refresh called "sign out of all other sessions and re-authenticate". Since about Nov 2025 Roblox
+                // still signs the session out there, but RAM no longer receives the new cookie -> every refreshed account
+                // ended up logged out. Now it only does a harmless, read-only session check (keeps the login in use and
+                // marks expired ones as "Not logged in"); nothing is signed out any more.
+                bool Running = false;
+
                 AutoCookieRefresh = new System.Timers.Timer(60000 * 5) { Enabled = true };
                 AutoCookieRefresh.Elapsed += async (s, e) =>
                 {
-                    int Count = 0;
+                    if (Running) return;
+                    Running = true;
 
-                    foreach (var Account in AccountsList)
+                    try
                     {
-                        if (Account.GetField("NoCookieRefresh") != "true" && (DateTime.Now - Account.LastUse).TotalDays > 20 && (DateTime.Now - Account.LastAttemptedRefresh).TotalDays >= 7)
+                        bool Changed = false;
+
+                        foreach (var Account in AccountsList.ToList())
                         {
-                            Program.Logger.Info($"Attempting to refresh {Account.Username} | Last Use: {Account.LastUse}");
+                            if (Account.GetField("NoCookieRefresh") == "true" || Account.GetField("BanStatus") == "Banned" || Account.GetField("BanStatus") == "NeedsLogin") continue;
+                            if ((DateTime.Now - Account.LastUse).TotalDays <= 7 || (DateTime.Now - Account.LastAttemptedRefresh).TotalDays < 1) continue;
 
                             Account.LastAttemptedRefresh = DateTime.Now;
 
-                            if (Account.LogOutOfOtherSessions(true)) Count++;
+                            var Info = await AccountChecks.CheckSession(Account, false, CancellationToken.None);
 
-                            await Task.Delay(5000);
+                            Program.Logger.Info($"Keep-alive check {Account.Username}: {Info.Result}");
+
+                            if (Info.Result == BanCheckResult.Ok) Account.LastUse = DateTime.Now;
+
+                            this.InvokeIfRequired(() => AccountChecks.Apply(Account, Info));
+                            Changed = true;
+
+                            await Task.Delay(3000);
                         }
-                    };
+
+                        if (Changed)
+                        {
+                            SaveAccounts(true);
+                            this.InvokeIfRequired(RefreshAfterChecks);
+                        }
+                    }
+                    catch (Exception x) { Program.Logger.Warn($"[KeepAlive] {x.Message}"); }
+                    finally { Running = false; }
                 };
             }
 
