@@ -1714,9 +1714,14 @@ namespace RBX_Alt_Manager
             if (!PlaceTimer.Enabled)
                 _ = Task.Run(() => AddRecentGame(new Game(PlaceId)));
 
+            // accidental second join: Roblox only allows one game per account, the open window would be kicked
+            var ToJoin = GuardDoubleJoin(AccountsView.SelectedObjects.Cast<object>().OfType<Account>().ToList(), "Join");
+            if (ToJoin.Count == 0) return;
+
             CancelLaunching();
 
-            bool LaunchMultiple = AccountsView.SelectedObjects.Count > 1;
+            bool LaunchMultiple = ToJoin.Count > 1;
+            Account Single = ToJoin[0];
 
             new Thread(async () => // finally fixing an ancient bug in a dumb way, p.s. i do not condone this.
             {
@@ -1724,11 +1729,11 @@ namespace RBX_Alt_Manager
                 {
                     LauncherToken = new CancellationTokenSource();
 
-                    await LaunchAccounts(SelectedAccounts, PlaceId, VIPServer ? JobID.Text.Substring(4) : JobID.Text, false, VIPServer);
+                    await LaunchAccounts(ToJoin, PlaceId, VIPServer ? JobID.Text.Substring(4) : JobID.Text, false, VIPServer);
                 }
-                else if (SelectedAccount != null)
+                else if (Single != null)
                 {
-                    string res = await SelectedAccount.JoinServer(PlaceId, VIPServer ? JobID.Text.Substring(4) : JobID.Text, false, VIPServer);
+                    string res = await Single.JoinServer(PlaceId, VIPServer ? JobID.Text.Substring(4) : JobID.Text, false, VIPServer);
 
                     if (!res.Contains("Success"))
                         ModernDialog.Show(res);
@@ -1747,17 +1752,20 @@ namespace RBX_Alt_Manager
             if (!(await Presence.GetPresenceSingular(UserId) is UserPresence Status && Status.userPresenceType == UserPresenceType.InGame && Status.placeId is long FollowPlaceID && FollowPlaceID > 0) &&
                 !Utilities.YesNoPrompt("Warning", "The user you are trying to follow is not in game or has their joins off", "Do you want to attempt to join anyways?")) return;
 
+            var ToJoin = GuardDoubleJoin(AccountsView.SelectedObjects.Cast<object>().OfType<Account>().ToList(), "Follow");
+            if (ToJoin.Count == 0) return;
+
             CancelLaunching();
 
-            if (AccountsView.SelectedObjects.Count > 1)
+            if (ToJoin.Count > 1)
             {
                 LauncherToken = new CancellationTokenSource();
 
-                await LaunchAccounts(SelectedAccounts, UserId, "", true);
+                await LaunchAccounts(ToJoin, UserId, "", true);
             }
-            else if (SelectedAccount != null)
+            else
             {
-                string res = await SelectedAccount.JoinServer(UserId, "", true);
+                string res = await ToJoin[0].JoinServer(UserId, "", true);
 
                 if (!res.Contains("Success"))
                     ModernDialog.Show(res);
@@ -2218,6 +2226,7 @@ namespace RBX_Alt_Manager
                 }
 
                 await account.JoinServer(PlaceId, JobId, FollowUser, VIPServer);
+                MarkJoined(account);
 
                 if (AsyncJoin)
                 {

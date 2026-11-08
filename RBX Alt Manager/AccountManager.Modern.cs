@@ -651,13 +651,64 @@ namespace RBX_Alt_Manager
                 !Utilities.YesNoPrompt("Join " + Target, $"{Target} is not in a game right now or has joins turned off", "Do you want to try to join anyway?"))
                 return;
 
+            if (GuardDoubleJoin(new List<Account> { A }, "Join " + Target).Count == 0) return;
+
             CancelLaunching();
 
             string Result = await A.JoinServer(TargetId, string.Empty, true);
+            MarkJoined(A);
 
             if (!Result.Contains("Success"))
                 ModernDialog.Show(Result, "Join " + Target, MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
+
+        #region Double join protection
+
+        private readonly Dictionary<long, DateTime> LastJoined = new Dictionary<long, DateTime>();
+
+        private void MarkJoined(Account A)
+        {
+            if (A == null) return;
+            lock (LastJoined) LastJoined[A.UserID] = DateTime.Now;
+        }
+
+        /// <summary>
+        /// Roblox allows one game per account: joining again kicks the open window ("same account launched from another device").
+        /// Accounts that are in a game or were started in the last 2 minutes need a confirmation; "No" skips only those.
+        /// </summary>
+        private List<Account> GuardDoubleJoin(List<Account> Accounts, string Title)
+        {
+            var Busy = new List<(Account A, string Why)>();
+
+            foreach (var A in Accounts)
+            {
+                DateTime When;
+                bool Recent;
+                lock (LastJoined) Recent = LastJoined.TryGetValue(A.UserID, out When) && (DateTime.Now - When).TotalSeconds < 120;
+
+                if (Recent) Busy.Add((A, $"started {(int)(DateTime.Now - When).TotalSeconds} s ago"));
+                else if (AccountRowRenderer.StateOf(A) == AccountState.InGame) Busy.Add((A, "already in a game"));
+            }
+
+            if (Busy.Count == 0)
+            {
+                foreach (var A in Accounts) MarkJoined(A);
+                return Accounts;
+            }
+
+            string Names = string.Join("\n", Busy.Take(8).Select(b => $"•  {b.A.Username} – {b.Why}")) + (Busy.Count > 8 ? $"\n…and {Busy.Count - 8} more" : string.Empty);
+            string Question = Accounts.Count == Busy.Count
+                ? $"{Names}\n\nRoblox allows only one game per account – joining again closes the Roblox window it is in right now.\n\nJoin anyway?"
+                : $"{Names}\n\nRoblox allows only one game per account – joining again closes their open Roblox window.\n\nYes = join all {Accounts.Count}   ·   No = skip these {Busy.Count}";
+
+            var Answer = ModernDialog.Show(Question, Title, MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+
+            var Result = Answer == DialogResult.Yes ? Accounts : Accounts.Where(a => !Busy.Exists(b => b.A == a)).ToList();
+            foreach (var A in Result) MarkJoined(A);
+            return Result;
+        }
+
+        #endregion
 
         private void SelectAllVisible()
         {
