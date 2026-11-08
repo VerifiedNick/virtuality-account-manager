@@ -115,11 +115,15 @@ namespace RBX_Alt_Manager
 
             if (!GetCSRFToken(out string Token)) return false;
 
-            RestRequest request = MakeRequest("/v1/authentication-ticket/", Method.Post).AddHeader("X-CSRF-TOKEN", Token).AddHeader("Referer", "https://www.roblox.com/games/4924922222/Brookhaven-RP");
+            // Roblox wants a JSON content type here now (same fix as upstream PR #422 "Update to latest Roblox API requirements")
+            RestRequest request = MakeRequest("/v1/authentication-ticket/", Method.Post).AddHeader("X-CSRF-TOKEN", Token).AddHeader("Referer", "https://www.roblox.com/games/4924922222/Brookhaven-RP").AddStringBody("{}", DataFormat.Json);
 
             RestResponse response = AccountManager.AuthClient.Execute(request);
 
-            Parameter TicketHeader = response.Headers.FirstOrDefault(x => x.Name == "rbx-authentication-ticket");
+            Parameter TicketHeader = response.Headers.FirstOrDefault(x => string.Equals(x.Name, "rbx-authentication-ticket", StringComparison.OrdinalIgnoreCase));
+
+            if (TicketHeader == null)
+                Program.Logger.Warn($"[AuthTicket] {Username}: {(int)response.StatusCode} {response.StatusDescription} {response.Content}");
 
             if (TicketHeader != null)
             {
@@ -133,7 +137,7 @@ namespace RBX_Alt_Manager
 
         public bool GetCSRFToken(out string Result)
         {
-            RestRequest request = MakeRequest("v1/authentication-ticket/", Method.Post).AddHeader("Referer", "https://www.roblox.com/games/4924922222/Brookhaven-RP");
+            RestRequest request = MakeRequest("v1/authentication-ticket/", Method.Post).AddHeader("Referer", "https://www.roblox.com/games/4924922222/Brookhaven-RP").AddStringBody("{}", DataFormat.Json);
 
             RestResponse response = AccountManager.AuthClient.Execute(request);
 
@@ -143,7 +147,7 @@ namespace RBX_Alt_Manager
                 return false;
             }
 
-            Parameter result = response.Headers.FirstOrDefault(x => x.Name == "x-csrf-token");
+            Parameter result = response.Headers.FirstOrDefault(x => string.Equals(x.Name, "x-csrf-token", StringComparison.OrdinalIgnoreCase));
 
             string Token = string.Empty;
 
