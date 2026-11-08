@@ -11,6 +11,7 @@ using System.Linq;
 using System.Net;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
 using System.Windows.Forms;
@@ -679,6 +680,36 @@ namespace RBX_Alt_Manager
             }
             else
                 return "ERROR: Invalid Authentication Ticket, re-add the account or try again\n(Failed to get Authentication Ticket, Roblox has probably signed you out)";
+        }
+
+        /// <summary>True as soon as this account's Roblox window exists (found by its browser tracker id), false after MaxSeconds or when cancelled.</summary>
+        public async Task<bool> WaitForWindow(int MaxSeconds, CancellationToken Token)
+        {
+            DateTime Ends = DateTime.Now.AddSeconds(MaxSeconds);
+
+            while (DateTime.Now < Ends && !Token.IsCancellationRequested)
+            {
+                try
+                {
+                    foreach (var P in Process.GetProcessesByName("RobloxPlayerBeta"))
+                    {
+                        try
+                        {
+                            if (P.MainWindowHandle == IntPtr.Zero) continue;
+
+                            var Match = Regex.Match(P.GetCommandLine(), @"\-b (\d+)");
+                            if (Match.Success && Match.Groups[1].Value == BrowserTrackerID) return true;
+                        }
+                        catch { }
+                        finally { P.Dispose(); }
+                    }
+                }
+                catch { }
+
+                try { await Task.Delay(400, Token); } catch (TaskCanceledException) { return false; }
+            }
+
+            return false;
         }
 
         public async void AdjustWindowPosition()
