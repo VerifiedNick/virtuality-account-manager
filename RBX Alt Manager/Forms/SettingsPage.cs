@@ -95,6 +95,9 @@ namespace RBX_Alt_Manager.Forms
             Toggle(S, "Load game pictures", "Turn off to save memory; the server list then shows names only.",
                 () => !General.Get<bool>("DisableImages"), V => { General.Set("DisableImages", Bool(!V)); Save(); });
 
+            Number(S, "Pause between group logins", "Seconds between two accounts when you use \"Log in group\". Longer = fewer captchas.", 5, 600,
+                () => General.Exists("LoginQueueDelay") ? General.Get<decimal>("LoginQueueDelay") : 20, V => { General.Set("LoginQueueDelay", V.ToString(CultureInfo.InvariantCulture)); Save(); });
+
             Number(S, "Recent games to remember", "How many games the recent games page keeps.", 1, 30,
                 () => General.Get<decimal>("MaxRecentGames"), V => { General.Set("MaxRecentGames", V.ToString(CultureInfo.InvariantCulture)); Save(); });
         }
@@ -191,6 +194,40 @@ namespace RBX_Alt_Manager.Forms
             Toggle(S, "Save passwords", "Keeps the password of each account (encrypted), needed for Re-login and Copy password.",
                 () => General.Get<bool>("SavePasswords"), V => { General.Set("SavePasswords", Bool(V)); Save(); });
 
+            ModernLabel BackupDesc = null;
+            ModernButton RestoreButton = null;
+            var RestoreMenu = new ContextMenuStrip();
+            ModernSkin.StyleMenu(RestoreMenu);
+
+            void UpdateBackups()
+            {
+                var All = Backups.List();
+                BackupDesc.Text = All.Count == 0 ? "A copy of your accounts is saved at every start (the newest 10 are kept). No copy yet." : $"A copy of your accounts is saved at every start, the newest {Backups.Keep} are kept. Newest: {All[0].LastWriteTime:dd.MM.yyyy HH:mm}.";
+                BackupDesc.Invalidate();
+
+                RestoreMenu.Items.Clear();
+                foreach (var F in All)
+                {
+                    var File_ = F;
+                    RestoreMenu.Items.Add($"{F.LastWriteTime:dd.MM.yyyy  HH:mm}   ·   {F.Length / 1024} KB", null, (s, e) => RestoreBackup(File_));
+                }
+                ModernSkin.StyleMenu(RestoreMenu);
+                RestoreButton.Enabled = All.Count > 0;
+            }
+
+            (_, BackupDesc) = Button(S, "Automatic backups", " ", "Open folder", ModernButtonStyle.Secondary, () =>
+            {
+                Directory.CreateDirectory(Backups.Folder);
+                System.Diagnostics.Process.Start("explorer.exe", Backups.Folder);
+            });
+
+            (RestoreButton, _) = Button(S, "Restore a backup", "Puts an older copy back. The current state is saved first, then the manager restarts.", "Choose…", ModernButtonStyle.Secondary, () => { });
+            RestoreButton.Menu = RestoreMenu;
+            RestoreButton.SplitMenu = false;
+
+            Refreshers.Add(UpdateBackups);
+            UpdateBackups();
+
             Button(S, "Change encryption", "Choose again how AccountData.json is protected. You will be asked for a new PIN.", "Change…", ModernButtonStyle.Danger, () =>
             {
                 if (Utilities.YesNoPrompt("Settings", "Change encryption", "Do you really want to change how your account data is encrypted?", false))
@@ -227,6 +264,25 @@ namespace RBX_Alt_Manager.Forms
         }
 
         #endregion
+
+        private void RestoreBackup(FileInfo Backup)
+        {
+            if (ModernDialog.Show($"Put back the copy from {Backup.LastWriteTime:dd.MM.yyyy HH:mm}?\n\nYour current accounts are saved first (as \"Before restore …\" in the Backups folder). Then the manager restarts and asks for the PIN of that copy.", "Restore a backup", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
+                return;
+
+            try
+            {
+                AccountManager.SavingBlocked = true;
+                Backups.Restore(Backup);
+                System.Diagnostics.Process.Start(Application.ExecutablePath, $"-after {System.Diagnostics.Process.GetCurrentProcess().Id}");
+                Application.Exit();
+            }
+            catch (Exception x)
+            {
+                AccountManager.SavingBlocked = false;
+                ModernDialog.Show($"The backup could not be restored. Nothing was changed.\n\n{x.Message}", "Restore a backup", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
 
         #region Start with Windows
 

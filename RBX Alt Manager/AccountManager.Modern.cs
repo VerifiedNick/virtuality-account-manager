@@ -24,7 +24,7 @@ namespace RBX_Alt_Manager
         private FieldBox GameField, JobField, SearchField;
         private TextBox SearchBox;
         private ModernButton JoinSelectedButton, ServerListIcon, RecentGamesIcon, AccountControlIcon, SettingsIcon, SaveJobIcon;
-        private ModernButton AddAccountButton, CheckBansButton, SelectGroupButton, ViewToggleButton;
+        private ModernButton AddAccountButton, CheckBansButton, SelectGroupButton, ViewToggleButton, LoginGroupButton;
         private AccountGrid Grid;
         private bool CardView = true;
         private readonly System.Windows.Forms.Timer CardPresenceTimer = new System.Windows.Forms.Timer() { Interval = 60000 };
@@ -277,6 +277,10 @@ namespace RBX_Alt_Manager
             GroupSubLabel = new ModernLabel() { Points = 9f, Color = Modern.Sub };
             TipLabel = new ModernLabel() { Text = "Ctrl / Shift + click selects several accounts – the buttons on the right then work for all of them. Right click a card for every other option.", Points = 8.25f, Color = Modern.Sub };
 
+            LoginGroupButton = new ModernButton() { Text = "Log in group", Icon = IconKind.Login, Style = ModernButtonStyle.Outline, Visible = false };
+            LoginGroupButton.Click += (s, e) => LoginGroupQueue();
+            SaveTooltip.SetToolTip(LoginGroupButton, "Logs in every logged-out account of this group, one after another with a pause.\nYou only solve the captcha. Click again to stop.");
+
             CheckBansButton = new ModernButton() { Text = "Check for bans", Icon = IconKind.Ban, Style = ModernButtonStyle.Danger };
             CheckBansButton.Click += (s, e) => CheckForBans();
             SaveTooltip.SetToolTip(CheckBansButton, "Checks every account with the Roblox API and marks banned ones red.\nNothing is deleted or moved.");
@@ -318,7 +322,7 @@ namespace RBX_Alt_Manager
             CardPresenceTimer.Tick += async (s, e) => await UpdateCardPresence(true);
             if (CardView) CardPresenceTimer.Start();
 
-            CenterPane.Controls.AddRange(new Control[] { GroupTitleLabel, GroupSubLabel, CheckBansButton, SelectGroupButton, ViewToggleButton, ListFrame, TipLabel });
+            CenterPane.Controls.AddRange(new Control[] { GroupTitleLabel, GroupSubLabel, LoginGroupButton, CheckBansButton, SelectGroupButton, ViewToggleButton, ListFrame, TipLabel });
 
             CenterPane.Layout += (s, e) =>
             {
@@ -330,8 +334,17 @@ namespace RBX_Alt_Manager
                 SelectGroupButton.SetBounds(ViewToggleButton.Left - Gap - Px(116), P, Px(116), RH);
                 CheckBansButton.SetBounds(SelectGroupButton.Left - Gap - Px(170), P, Px(170), RH);
 
+                int TitleRight = CheckBansButton.Left;
+
+                if (LoginGroupButton.Visible)
+                {
+                    int LW = Math.Max(Px(170), TextRenderer.MeasureText(LoginGroupButton.Text, Modern.Font(9.25f, FontStyle.Regular, true)).Width + Px(52));
+                    LoginGroupButton.SetBounds(CheckBansButton.Left - Gap - LW, P, LW, RH);
+                    TitleRight = LoginGroupButton.Left;
+                }
+
                 // title + subtitle share the height of the button row
-                GroupTitleLabel.SetBounds(P, P - Px(4), Math.Max(Px(80), CheckBansButton.Left - P - Px(10)), Px(28));
+                GroupTitleLabel.SetBounds(P, P - Px(4), Math.Max(Px(80), TitleRight - P - Px(10)), Px(28));
                 GroupSubLabel.SetBounds(P, P + RH - Px(16), GroupTitleLabel.Width, Px(16));
 
                 int ListTop = P + RH + Px(14);
@@ -680,6 +693,8 @@ namespace RBX_Alt_Manager
             GroupSubLabel.Text = string.Join("  ·  ", Parts);
             GroupSubLabel.Color = Banned > 0 ? Modern.Danger : Modern.Sub;
             GroupSubLabel.Invalidate();
+
+            UpdateLoginGroupButton();
         }
 
         private void UpdateGroupSidebar()
@@ -767,7 +782,92 @@ namespace RBX_Alt_Manager
 
         private bool LoginRunning;
 
-        private async void LoginAccount(Account A)
+        private async void LoginAccount(Account A) => await LoginAccountAsync(A);
+
+        #region Group login queue
+
+        private CancellationTokenSource LoginQueueCts;
+
+        private int LoginQueueDelay => General != null && General.Exists("LoginQueueDelay") && int.TryParse(General.Get("LoginQueueDelay"), out int D) ? Math.Max(5, Math.Min(D, 600)) : 20;
+
+        private List<Account> GroupNeedingLogin() =>
+            ActiveGroupKey == null ? new List<Account>() : AccountsList.Where(a => a.Group == ActiveGroupKey && AccountRowRenderer.StateOf(a) == AccountState.NeedsLogin).ToList();
+
+        /// <summary>Shows "Log in group (n)" when the open group has logged-out accounts (and nothing is running).</summary>
+        private void UpdateLoginGroupButton()
+        {
+            if (LoginGroupButton == null) return;
+            if (LoginQueueCts != null) return; // the running queue writes its own text
+
+            int N = GroupNeedingLogin().Count;
+            bool Show = N > 0;
+
+            LoginGroupButton.Text = $"Log in group ({N})";
+            LoginGroupButton.Style = ModernButtonStyle.Outline;
+
+            if (LoginGroupButton.Visible != Show) { LoginGroupButton.Visible = Show; CenterPane.PerformLayout(); }
+            else LoginGroupButton.Invalidate();
+        }
+
+        /// <summary>
+        /// Logs in the logged-out accounts of the open group one after another: one login window at a time,
+        /// then a pause (Settings → General) so Roblox doesn't block the logins. Click the button again to stop.
+        /// </summary>
+        private async void LoginGroupQueue()
+        {
+            if (LoginQueueCts != null) { LoginQueueCts.Cancel(); LoginGroupButton.Text = "Stopping…"; return; }
+
+            string Group = ActiveGroupKey;
+            var Queue = GroupNeedingLogin();
+
+            if (Queue.Count == 0) { UpdateLoginGroupButton(); return; }
+            if (LoginRunning) { ModernDialog.Show("A login window is open right now. Finish it first.", "Log in group", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
+
+            if (ModernDialog.Show($"Log in {Queue.Count} account{(Queue.Count == 1 ? "" : "s")} of {GroupTitleOf(Group)} one after another?\n\nFor each account a login window opens with username and password filled in – you only solve the captcha. Between two accounts there is a {LoginQueueDelay} s pause so Roblox doesn't block the logins.\n\nClick the button again to stop.", "Log in group", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+                return;
+
+            LoginQueueCts = new CancellationTokenSource();
+            var Token = LoginQueueCts.Token;
+            int Done = 0, Failed = 0;
+
+            LoginGroupButton.Style = ModernButtonStyle.Danger;
+
+            try
+            {
+                for (int i = 0; i < Queue.Count && !Token.IsCancellationRequested; i++)
+                {
+                    var A = Queue[i];
+                    if (AccountRowRenderer.StateOf(A) != AccountState.NeedsLogin) continue; // logged in meanwhile
+
+                    LoginGroupButton.Text = $"Stop · {i + 1}/{Queue.Count} {A.Username}";
+                    CenterPane.PerformLayout();
+
+                    await LoginAccountAsync(A);
+
+                    if (AccountRowRenderer.StateOf(A) == AccountState.NeedsLogin) Failed++; else Done++;
+
+                    if (i < Queue.Count - 1 && !Token.IsCancellationRequested)
+                        for (int s = LoginQueueDelay; s > 0 && !Token.IsCancellationRequested; s--)
+                        {
+                            LoginGroupButton.Text = $"Stop · next in {s} s ({i + 2}/{Queue.Count})";
+                            try { await Task.Delay(1000, Token); } catch (TaskCanceledException) { }
+                        }
+                }
+            }
+            finally
+            {
+                bool Stopped = Token.IsCancellationRequested;
+                LoginQueueCts = null;
+                UpdateLoginGroupButton();
+                CenterPane.PerformLayout();
+
+                ModernDialog.Show($"{(Stopped ? "Stopped. " : string.Empty)}{Done} logged in{(Failed > 0 ? $", {Failed} not (window closed or login failed)" : string.Empty)}.", "Log in group", MessageBoxButtons.OK, Failed > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
+            }
+        }
+
+        #endregion
+
+        private async Task LoginAccountAsync(Account A)
         {
             if (A == null) { ModernDialog.Show("Select an account first.", "Login", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
 

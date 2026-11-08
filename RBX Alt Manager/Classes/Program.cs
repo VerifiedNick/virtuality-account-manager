@@ -66,6 +66,7 @@ namespace RBX_Alt_Manager
                 if (File.Exists(Path.Combine(Exe, "AccountData.json")) || File.Exists(Path.Combine(Exe, "RAMSettings.ini")))
                 {
                     Environment.CurrentDirectory = Exe;
+                    RBX_Alt_Manager.Classes.Backups.MakeStartBackup();
                     return;
                 }
 
@@ -92,6 +93,7 @@ namespace RBX_Alt_Manager
                 }
 
                 Environment.CurrentDirectory = Data;
+                RBX_Alt_Manager.Classes.Backups.MakeStartBackup();
             }
             catch (Exception x)
             {
@@ -131,6 +133,11 @@ namespace RBX_Alt_Manager
         static void Main(params string[] Arguments)
         {
             int Stupid = 1337;
+
+            // "-after <pid>": started by "restore backup" – wait until the old window is really gone
+            int AfterIndex = Array.IndexOf(Arguments, "-after");
+            if (AfterIndex >= 0 && AfterIndex + 1 < Arguments.Length && int.TryParse(Arguments[AfterIndex + 1], out int OldPid))
+                try { Process.GetProcessById(OldPid).WaitForExit(15000); } catch { }
 
             SetupDataFolder();
             RBX_Alt_Manager.Classes.AppIcon.ApplyAsDefault();

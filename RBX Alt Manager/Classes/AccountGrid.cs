@@ -86,7 +86,7 @@ namespace RBX_Alt_Manager.Classes
             var Hit = Entries.Where(E => E.Card.IntersectsWith(Rect)).Select(E => E.Account);
             var Result = Items.Where(a => DragBase.Contains(a) || Hit.Contains(a)).ToList();
 
-            if (!Result.SequenceEqual(LastDragSelection))
+            if (LastDragSelection == null || !Result.SequenceEqual(LastDragSelection))
             {
                 LastDragSelection = Result;
                 SetSelection(Result);

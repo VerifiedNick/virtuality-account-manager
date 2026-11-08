@@ -396,6 +396,7 @@
     <Compile Include="Classes\AccountRowRenderer.cs" />
     <Compile Include="Classes\ModernSkin.cs" />
     <Compile Include="Classes\ModernDialog.cs" />
+    <Compile Include="Classes\Backups.cs" />
     <Compile Include="AccountManager.Pages.cs">
       <DependentUpon>AccountManager.cs</DependentUpon>
       <SubType>Form</SubType>

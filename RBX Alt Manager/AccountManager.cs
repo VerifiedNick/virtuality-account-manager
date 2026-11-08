@@ -486,8 +486,13 @@ namespace RBX_Alt_Manager
             }
         }
 
+        /// <summary>Set while a backup is being restored: nothing may overwrite the restored file before the restart.</summary>
+        public static bool SavingBlocked;
+
         public static void SaveAccounts(bool BypassRateLimit = false, bool BypassCountCheck = false)
         {
+            if (SavingBlocked) return;
+
             if ((!BypassRateLimit && (DateTime.Now - startTime).Seconds < 2) || (!BypassCountCheck && AccountsList.Count == 0)) return;
 
             lock (saveLock)
