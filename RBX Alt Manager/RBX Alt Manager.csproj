@@ -62,7 +62,7 @@
     <DebugSymbols>true</DebugSymbols>
   </PropertyGroup>
   <PropertyGroup>
-    <ApplicationIcon>Resources\team_KX4_icon.ico</ApplicationIcon>
+    <ApplicationIcon>Resources\virtuality.ico</ApplicationIcon>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x86'">
     <DebugSymbols>true</DebugSymbols>
@@ -617,6 +617,9 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="Resources\team_KX4_icon.ico" />
+    <EmbeddedResource Include="Resources\virtuality.ico">
+      <LogicalName>virtuality.ico</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
   <ItemGroup>
     <BootstrapperPackage Include=".NETFramework,Version=v4.7.2">

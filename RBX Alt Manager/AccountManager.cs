@@ -179,6 +179,14 @@ namespace RBX_Alt_Manager
 
             if (ThemeEditor.UseDarkTopBar) Icon = Properties.Resources.team_KX4_icon_white; // this has to go after or icon wont actually change
 
+            // Virtuality Manager icon (all sizes; tiny sizes show only the V so it stays readable)
+            try
+            {
+                using (var IconStream = Assembly.GetExecutingAssembly().GetManifestResourceStream("virtuality.ico"))
+                    if (IconStream != null) Icon = new Icon(IconStream);
+            }
+            catch (Exception x) { Program.Logger.Warn($"[Icon] {x.Message}"); }
+
             AccountsView.UnfocusedHighlightBackgroundColor = Color.FromArgb(0, 150, 215);
             AccountsView.UnfocusedHighlightForegroundColor = Color.FromArgb(240, 240, 240);
 

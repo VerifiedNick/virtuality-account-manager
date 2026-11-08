@@ -664,9 +664,8 @@ namespace RBX_Alt_Manager
 
             var Parts = new List<string> { InGroup.Count == 1 ? "1 account" : $"{InGroup.Count} accounts" };
 
-            if (ActiveGroupKey == null) Parts.Add($"{AccountsList.Select(a => a.Group).Distinct().Count()} groups");
             if (Banned > 0) Parts.Add($"{Banned} banned");
-            if (NeedLogin > 0) Parts.Add($"{NeedLogin} not logged in");
+            if (NeedLogin > 0) Parts.Add($"{NeedLogin} logged out");
             if (SearchBox.Text.Trim().Length > 0) Parts.Add($"{AccountsView.GetItemCount()} match \"{SearchBox.Text.Trim()}\"");
 
             GroupSubLabel.Text = string.Join("  ·  ", Parts);
