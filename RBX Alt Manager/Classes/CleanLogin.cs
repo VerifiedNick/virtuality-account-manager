@@ -131,13 +131,52 @@ namespace RBX_Alt_Manager.Classes
         /// <summary>
         /// Opens the login, fills it in and waits (max. 15 minutes) for the login cookie. Returns (cookie, password) or null when the window was closed.
         /// </summary>
-        public static async Task<(string Cookie, string Password)?> Run(string Browser, string Username, string Password, Action<string> Status = null)
+        public static readonly string ProfilesFolder = Path.Combine(Environment.CurrentDirectory, "LoginProfiles");
+
+        /// <summary>
+        /// Each account keeps its own browser profile in "LoginProfiles\&lt;UserId&gt;", so Roblox sees the same device on every re-login
+        /// (fewer extra checks). Caches are not kept. New accounts start in a temporary "new-…" folder that is renamed after the login.
+        /// </summary>
+        public static string ProfileFor(long UserId) => Path.Combine(ProfilesFolder, UserId > 0 ? UserId.ToString() : "new-" + Guid.NewGuid().ToString("N").Substring(0, 8));
+
+        /// <summary>After a new account logged in, its temporary profile folder becomes its own one.</summary>
+        public static void AdoptProfile(string Profile, long UserId)
+        {
+            if (string.IsNullOrEmpty(Profile) || UserId <= 0 || !Path.GetFileName(Profile).StartsWith("new-")) return;
+
+            string Target = ProfileFor(UserId);
+
+            _ = Task.Run(async () =>
+            {
+                for (int i = 0; i < 10; i++)
+                {
+                    await Task.Delay(1500);
+
+                    try
+                    {
+                        if (Directory.Exists(Target)) { Directory.Delete(Profile, true); return; } // the account already had one
+                        Directory.Move(Profile, Target);
+                        return;
+                    }
+                    catch { }
+                }
+            });
+        }
+
+        private static void DropCaches(string Profile)
+        {
+            foreach (string Sub in new[] { @"Default\Cache", @"Default\Code Cache", @"Default\GPUCache", @"Default\Service Worker\CacheStorage", @"Default\Service Worker\ScriptCache", "GrShaderCache", "ShaderCache", "GraphiteDawnCache", @"Default\DawnGraphiteCache", @"Default\DawnWebGPUCache", "component_crx_cache", "OptimizationGuidePredictionModels" })
+            {
+                try { string D = Path.Combine(Profile, Sub); if (Directory.Exists(D)) Directory.Delete(D, true); } catch { }
+            }
+        }
+
+        public static async Task<(string Cookie, string Password)?> Run(string Browser, string Username, string Password, string Profile, Action<string> Status = null)
         {
             int Port = FreePort();
-            string Profile = Path.Combine(Path.GetTempPath(), "RAM-Login-" + Guid.NewGuid().ToString("N").Substring(0, 8));
             Directory.CreateDirectory(Profile);
 
-            string Args = $"--user-data-dir=\"{Profile}\" --remote-debugging-port={Port} --remote-allow-origins=* --no-first-run --no-default-browser-check --disable-sync --window-size=900,820 \"https://www.roblox.com/login\"";
+            string Args = $"--user-data-dir=\"{Profile}\" --remote-debugging-port={Port} --remote-allow-origins=* --no-first-run --no-default-browser-check --disable-sync --disk-cache-size=1 --media-cache-size=1 --window-size=900,820 \"https://www.roblox.com/login\"";
             Process Proc = Process.Start(new ProcessStartInfo(Browser, Args) { UseShellExecute = false });
 
             using var Http = new HttpClient(new HttpClientHandler() { UseProxy = false }) { Timeout = TimeSpan.FromSeconds(3) };
@@ -217,13 +256,10 @@ namespace RBX_Alt_Manager.Classes
 
                 try { if (!Proc.HasExited && !Proc.WaitForExit(3000)) Proc.Kill(); } catch { }
 
-                _ = Task.Run(async () => // the profile folder is locked for a moment after closing
+                _ = Task.Run(async () => // keep the profile (= same device for Roblox), only throw away the caches
                 {
-                    for (int i = 0; i < 10; i++)
-                    {
-                        await Task.Delay(1500);
-                        try { if (Directory.Exists(Profile)) Directory.Delete(Profile, true); break; } catch { }
-                    }
+                    await Task.Delay(2000);
+                    DropCaches(Profile);
                 });
             }
         }

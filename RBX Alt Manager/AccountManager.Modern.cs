@@ -730,7 +730,7 @@ namespace RBX_Alt_Manager
 
             if (CleanLogin.FindBrowser() != null)
             {
-                await LoginInRealBrowser(A.Username, Password);
+                await LoginInRealBrowser(A.Username, Password, A.UserID);
                 return;
             }
 
@@ -751,16 +751,17 @@ namespace RBX_Alt_Manager
         }
 
         /// <summary>Login in the installed Chrome / Edge (normal window, own temporary profile). Used for "Login", "Re-login" and "Add account → Browser".</summary>
-        private async Task LoginInRealBrowser(string Username = null, string Password = null)
+        private async Task LoginInRealBrowser(string Username = null, string Password = null, long UserId = 0)
         {
             string Browser = CleanLogin.FindBrowser();
+            string Profile = CleanLogin.ProfileFor(UserId);
 
             AccountCard.Login.Enabled = false;
             AddAccountButton.Enabled = false;
 
             try
             {
-                var Result = await CleanLogin.Run(Browser, Username, Password);
+                var Result = await CleanLogin.Run(Browser, Username, Password, Profile);
 
                 if (Result is (string Cookie, string Pw))
                 {
@@ -770,8 +771,14 @@ namespace RBX_Alt_Manager
                         MessageBox.Show("Roblox did not accept the login cookie. Please try again.", "Login", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     else
                     {
+                        CleanLogin.AdoptProfile(Profile, Added.UserID);
+
                         if (Added.GetField("BanStatus") == "NeedsLogin") Added.Fields.Remove("BanStatus");
                         Added.Fields["SessionChecked"] = DateTime.Now.ToString("yyyy-MM-dd HH:mm");
+
+                        // read the e-mail right away now that the account is logged in again
+                        try { AccountChecks.Apply(Added, await AccountChecks.CheckSession(Added, true, CancellationToken.None)); } catch { }
+
                         SaveAccounts(true);
                         RefreshAfterChecks();
                     }
