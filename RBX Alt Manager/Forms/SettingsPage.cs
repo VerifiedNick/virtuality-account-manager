@@ -34,6 +34,7 @@ namespace RBX_Alt_Manager.Forms
             Tag = "NoScaling";
 
             BuildGeneral();
+            BuildUpdates();
             BuildJoining();
             BuildStatus();
             BuildSecurity();
@@ -100,12 +101,17 @@ namespace RBX_Alt_Manager.Forms
 
             Number(S, "Recent games to remember", "How many games the recent games page keeps.", 1, 30,
                 () => General.Get<decimal>("MaxRecentGames"), V => { General.Set("MaxRecentGames", V.ToString(CultureInfo.InvariantCulture)); Save(); });
+        }
 
-            Toggle(S, "Check for updates", $"Looks at Virtuality Manager on GitHub when it starts and offers to update itself. You have build {RBX_Alt_Manager.Classes.AppUpdate.BuildNumber}.",
-                () => General.Get<bool>("CheckForUpdates"), V => { General.Set("CheckForUpdates", Bool(V)); Save(); });
+        private void BuildUpdates()
+        {
+            var S = Section("Updates", "Keep Virtuality Account Manager up to date.");
 
-            Button(S, "Check for updates now", "Downloads the newest version from GitHub and replaces this one (needs the repo to be public).", "Check now", ModernButtonStyle.Secondary,
+            Button(S, "Check for updates now", $"You have build {RBX_Alt_Manager.Classes.AppUpdate.BuildNumber}. Downloads the newest version from GitHub and replaces this one.", "Check now", ModernButtonStyle.Primary,
                 () => RBX_Alt_Manager.Classes.AppUpdate.CheckNow());
+
+            Toggle(S, "Check automatically", "Looks for a new version when the app starts and offers to update.",
+                () => General.Get<bool>("CheckForUpdates"), V => { General.Set("CheckForUpdates", Bool(V)); Save(); });
         }
 
         private void BuildJoining()
@@ -238,7 +244,7 @@ namespace RBX_Alt_Manager.Forms
                 System.Diagnostics.Process.Start("explorer.exe", Backups.Folder);
             });
 
-            Button(S, "Safe copies", "The copies outside the app folder. A new Virtuality Manager finds them by itself and offers to put them back.", "Open folder", ModernButtonStyle.Secondary, () =>
+            Button(S, "Safe copies", "The copies outside the app folder. A new Virtuality Account Manager finds them by itself and offers to put them back.", "Open folder", ModernButtonStyle.Secondary, () =>
             {
                 Directory.CreateDirectory(Backups.SafeFolder);
                 System.Diagnostics.Process.Start("explorer.exe", Backups.SafeFolder);
@@ -310,7 +316,7 @@ namespace RBX_Alt_Manager.Forms
         #region Start with Windows
 
         private const string RunKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
-        private const string RunName = "Virtuality Manager";
+        private const string RunName = "Virtuality Account Manager";
 
         private static bool GetStartup()
         {

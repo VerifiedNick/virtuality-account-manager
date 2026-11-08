@@ -121,7 +121,7 @@ namespace RBX_Alt_Manager
                     case MessageBoxIcon.Error: return "Something went wrong";
                     case MessageBoxIcon.Warning: return "Heads up";
                     case MessageBoxIcon.Question: return "Are you sure?";
-                    default: return "Virtuality Manager";
+                    default: return "Virtuality Account Manager";
                 }
 
             return Caption.Trim();
@@ -141,7 +141,7 @@ namespace RBX_Alt_Manager
 
         private static DialogResult Build(IWin32Window Owner, string Text, string Caption, MessageBoxButtons Buttons, MessageBoxIcon Icon, string RememberText, out bool Remember)
         {
-            Text = (Text ?? string.Empty).Replace("Roblox Account Manager", "Virtuality Manager").TrimEnd();
+            Text = (Text ?? string.Empty).Replace("Roblox Account Manager", "Virtuality Account Manager").TrimEnd();
 
             int G = Modern.Gutter + Modern.Px(4), W = Modern.Px(460), BadgeSz = Modern.Px(30), TextX = G + BadgeSz + Modern.Px(14), TextW = W - TextX - G;
 
@@ -266,7 +266,7 @@ namespace RBX_Alt_Manager
         private static DialogResult BuildPrompt(string Text, string Caption, string Default, bool Big, out string Value)
         {
             int G = Modern.Gutter + Modern.Px(4), W = Modern.Px(Big ? 520 : 420);
-            var F = new DialogForm() { Text = string.IsNullOrWhiteSpace(Caption) ? "Virtuality Manager" : Caption };
+            var F = new DialogForm() { Text = string.IsNullOrWhiteSpace(Caption) ? "Virtuality Account Manager" : Caption };
 
             var Title = new ModernLabel() { Text = F.Text, Points = 11.5f, Bold = true };
             Title.SetBounds(G, G, W - G * 2, Modern.Px(24));

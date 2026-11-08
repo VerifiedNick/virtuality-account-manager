@@ -4,11 +4,11 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("Virtuality Manager")]
+[assembly: AssemblyTitle("Virtuality Account Manager")]
 [assembly: AssemblyDescription("Created by ic3w0lf")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("ic3")]
-[assembly: AssemblyProduct("Virtuality Manager")]
+[assembly: AssemblyProduct("Virtuality Account Manager")]
 [assembly: AssemblyCopyright("Copyright © ic3 2023")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]

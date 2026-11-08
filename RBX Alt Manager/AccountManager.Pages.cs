@@ -548,7 +548,7 @@ namespace RBX_Alt_Manager
 
             LockCard = new Panel() { BackColor = Modern.Bg, Tag = "NoScaling", Visible = false };
 
-            var Title = new ModernLabel() { Text = "Virtuality Manager", Points = 20f, Bold = true, Center = true };
+            var Title = new ModernLabel() { Text = "Virtuality Account Manager", Points = 20f, Bold = true, Center = true };
             var Sub = new ModernLabel() { Text = "Enter your PIN to unlock your accounts", Points = 11f, Color = Modern.Text2, Center = true };
             PinMessage = new ModernLabel() { Points = 10f, Color = Modern.Danger, Center = true };
             var Foot = new ModernLabel() { Text = "Press Enter to unlock  ·  your accounts stay encrypted on this PC", Points = 9f, Color = Modern.Sub, Center = true };

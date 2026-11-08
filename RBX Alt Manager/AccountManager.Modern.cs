@@ -68,7 +68,7 @@ namespace RBX_Alt_Manager
             MinimumSize = new Size(1100, 700);
             MaximizeBox = true;
             BackColor = Modern.Bg;
-            Text = "Virtuality Manager";
+            Text = "Virtuality Account Manager";
 
             // old controls that have no place in the new layout: kept (their code still runs), just never shown
             LegacyHolder = new Panel() { Name = "LegacyHolder", Visible = false, Size = new Size(10, 10) };
