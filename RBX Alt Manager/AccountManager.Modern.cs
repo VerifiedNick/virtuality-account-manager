@@ -884,9 +884,9 @@ namespace RBX_Alt_Manager
         /// Waits until the account is in the game and returns its server (Job ID). The Job ID field is filled with it,
         /// so every following Join – also single ones – goes to the same server. Clear the field for a new server.
         /// </summary>
-        private async Task<string> WaitForServer(Account A, long PlaceId, CancellationToken Token)
+        private async Task<string> WaitForServer(Account A, long PlaceId, CancellationToken Token, int MaxSeconds = 120)
         {
-            for (int i = 0; i < 40 && !Token.IsCancellationRequested; i++) // up to ~2 minutes (Roblox needs a moment to load)
+            for (int i = 0; i < MaxSeconds / 3 && !Token.IsCancellationRequested; i++) // Roblox needs a moment to load
             {
                 try { await Task.Delay(3000, Token); } catch (TaskCanceledException) { break; }
 

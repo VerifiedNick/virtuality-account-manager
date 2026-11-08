@@ -22,13 +22,13 @@ namespace RBX_Alt_Manager.Classes
         }
 
         private static readonly RestClient Games = new RestClient("https://games.roblox.com/");
-        private static readonly Dictionary<long, (DateTime When, List<Server> List)> Cache = new Dictionary<long, (DateTime, List<Server>)>();
+        private static readonly Dictionary<(long, bool), (DateTime When, List<Server> List)> Cache = new Dictionary<(long, bool), (DateTime, List<Server>)>();
 
-        /// <summary>Busiest servers first (Roblox sorts by players), up to Pages × 100, cached for 10 s.</summary>
-        public static async Task<List<Server>> Fetch(long PlaceId, int Pages, CancellationToken Token)
+        /// <summary>Busiest servers first (Roblox sorts by players) – or emptiest first with Emptiest – up to Pages × 100, cached for 10 s.</summary>
+        public static async Task<List<Server>> Fetch(long PlaceId, int Pages, CancellationToken Token, bool Emptiest = false)
         {
             lock (Cache)
-                if (Cache.TryGetValue(PlaceId, out var C) && (DateTime.Now - C.When).TotalSeconds < 10 && C.List.Count > 0)
+                if (Cache.TryGetValue((PlaceId, Emptiest), out var C) && (DateTime.Now - C.When).TotalSeconds < 10 && C.List.Count > 0)
                     return C.List;
 
             var List = new List<Server>();
@@ -36,7 +36,7 @@ namespace RBX_Alt_Manager.Classes
 
             for (int Page = 0; Page < Pages && !Token.IsCancellationRequested; Page++)
             {
-                var Request = new RestRequest($"v1/games/{PlaceId}/servers/Public").AddQueryParameter("sortOrder", "Desc").AddQueryParameter("limit", "100");
+                var Request = new RestRequest($"v1/games/{PlaceId}/servers/Public").AddQueryParameter("sortOrder", Emptiest ? "Asc" : "Desc").AddQueryParameter("limit", "100");
                 if (!string.IsNullOrEmpty(Cursor)) Request.AddQueryParameter("cursor", Cursor);
 
                 var Response = await Games.ExecuteAsync(Request, Token);
@@ -53,7 +53,7 @@ namespace RBX_Alt_Manager.Classes
                 if (string.IsNullOrEmpty(Cursor)) break;
             }
 
-            lock (Cache) Cache[PlaceId] = (DateTime.Now, List);
+            lock (Cache) Cache[(PlaceId, Emptiest)] = (DateTime.Now, List);
             return List;
         }
 
@@ -66,13 +66,24 @@ namespace RBX_Alt_Manager.Classes
             try
             {
                 var List = await Fetch(PlaceId, 2, Token);
-                var Best = List.Where(s => s.MaxPlayers > 0 && s.Free >= Accounts + 2).OrderByDescending(s => s.Playing).FirstOrDefault();
+                var Best = Fit(List, Accounts);
 
-                Program.Logger.Info($"[SameServer] {List.Count} servers read, picked {Best?.Id ?? "none"} for {Accounts} account(s)");
+                // the busiest 200 are all too full (big games) → look at the emptiest ones instead, they have room
+                if (Best == null && !Token.IsCancellationRequested)
+                {
+                    var Empty = await Fetch(PlaceId, 1, Token, true);
+                    Best = Fit(Empty, Accounts) ?? Empty.Where(s => s.MaxPlayers > 0 && s.Free >= 2).OrderByDescending(s => s.Free).FirstOrDefault();
+                    List = List.Concat(Empty).ToList();
+                }
+
+                Program.Logger.Info($"[SameServer] {List.Count} servers read, picked {Best?.Id ?? "none"} ({Best?.Playing}/{Best?.MaxPlayers}) for {Accounts} account(s)");
                 return Best?.Id;
             }
             catch (Exception x) { Program.Logger.Warn($"[SameServer] server list: {x.Message}"); return null; }
         }
+
+        private static Server Fit(List<Server> List, int Accounts) =>
+            List.Where(s => s.MaxPlayers > 0 && s.Free >= Accounts + 2).OrderByDescending(s => s.Playing).FirstOrDefault();
 
         /// <summary>True / false when the server is in the list; null when it can't be told (not in the first pages).</summary>
         public static async Task<bool?> HasRoom(long PlaceId, string JobId, CancellationToken Token)
@@ -86,6 +97,6 @@ namespace RBX_Alt_Manager.Classes
         }
 
         /// <summary>Forget the cached list (after a join the player counts change).</summary>
-        public static void Forget(long PlaceId) { lock (Cache) Cache.Remove(PlaceId); }
+        public static void Forget(long PlaceId) { lock (Cache) { Cache.Remove((PlaceId, false)); Cache.Remove((PlaceId, true)); } }
     }
 }

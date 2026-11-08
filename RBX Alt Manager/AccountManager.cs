@@ -2298,7 +2298,9 @@ namespace RBX_Alt_Manager
 
                 if (FindServer && First && string.IsNullOrEmpty(JobId))
                 {
-                    string Server = await WaitForServer(account, PlaceId, Token.Token);
+                    // only a short wait: the other accounts must not hang for minutes when Roblox is slow (they then join normally)
+                    Activities.Update(Job, $"Joining {Index}/{Accounts.Count} · finding the server of {account.Username}");
+                    string Server = await WaitForServer(account, PlaceId, Token.Token, 30);
                     if (!string.IsNullOrEmpty(Server)) JobID = Server; // the next accounts use it (unless they have their own saved server)
                 }
 
