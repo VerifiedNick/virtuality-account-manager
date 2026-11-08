@@ -236,7 +236,7 @@ namespace RBX_Alt_Manager
         {
             GroupTitleLabel = new ModernLabel() { Text = "All accounts", Points = 15f, Bold = true };
             GroupSubLabel = new ModernLabel() { Points = 9f, Color = Modern.Sub };
-            TipLabel = new ModernLabel() { Text = "Ctrl / Shift + click selects several accounts – the buttons on the right then work for all of them. Right click a row for every other option.", Points = 8.25f, Color = Modern.Sub };
+            TipLabel = new ModernLabel() { Text = "Ctrl / Shift + click selects several accounts – the buttons on the right then work for all of them. Right click a card for every other option.", Points = 8.25f, Color = Modern.Sub };
 
             CheckBansButton = new ModernButton() { Text = "Check for bans", Icon = IconKind.Ban, Style = ModernButtonStyle.Danger };
             CheckBansButton.Click += (s, e) => CheckForBans();
@@ -264,6 +264,7 @@ namespace RBX_Alt_Manager
             Grid.SetSelection = List => { AccountsView.SelectedObjects = List; Grid.Invalidate(); };
             Grid.JoinClicked = A => { SelectedAccount = A; JoinServer_Click(Grid, EventArgs.Empty); };
             Grid.JoinMainClicked = JoinMainWith;
+            Grid.ReloginClicked = A => LoginSelectedAccount();
             Grid.ContextRequested = (A, P) => AccountsStrip.Show(Grid, P);
             Grid.SectionTitle = GroupTitleOf;
             ListFrame.Controls.Add(Grid);
@@ -474,8 +475,22 @@ namespace RBX_Alt_Manager
 
         #region Groups + filter
 
-        private string GroupTitleOf(string Key) =>
-            Key == null ? "All accounts" : (Group.GroupKeyToTitleConverter?.Invoke(Key) ?? Key).Trim().TrimStart(':', '-', '.', ' ');
+        /// <summary>Display name of a group: without RAM's number prefix and without the "A: " letter (the group itself is not renamed, so the order stays).</summary>
+        private string GroupTitleOf(string Key)
+        {
+            if (Key == null) return "All accounts";
+
+            string Title = (Group.GroupKeyToTitleConverter?.Invoke(Key) ?? Key).Trim().TrimStart(':', '-', '.', ' ');
+            string Short = System.Text.RegularExpressions.Regex.Replace(Title, @"^[A-Za-z0-9]{1,3}\s*:\s*", string.Empty).Trim();
+
+            if (Short.Length == 0) Short = Title;
+
+            // abbreviations like "HSA" show the Rank chosen for the group's picture
+            if (!Short.Contains(" ") && Short.Length <= 5 && Short.ToUpperInvariant() == Short && GroupImages.GetOverride(Key) is string Entry)
+                return Entry;
+
+            return Short;
+        }
 
         private void SetActiveGroup(string Key)
         {
@@ -607,7 +622,7 @@ namespace RBX_Alt_Manager
 
             if (ActiveGroupKey == null) Parts.Add($"{AccountsList.Select(a => a.Group).Distinct().Count()} groups");
             if (Banned > 0) Parts.Add($"{Banned} banned");
-            if (NeedLogin > 0) Parts.Add($"{NeedLogin} need login");
+            if (NeedLogin > 0) Parts.Add($"{NeedLogin} not logged in");
             if (SearchBox.Text.Trim().Length > 0) Parts.Add($"{AccountsView.GetItemCount()} match \"{SearchBox.Text.Trim()}\"");
 
             GroupSubLabel.Text = string.Join("  ·  ", Parts);
@@ -621,7 +636,7 @@ namespace RBX_Alt_Manager
 
             var Items = new List<GroupSidebarItem>
             {
-                new GroupSidebarItem() { Key = null, Title = "All accounts", Count = AccountsList.Count, Banned = AccountsList.Count(a => AccountRowRenderer.StateOf(a) == AccountState.Banned) }
+                new GroupSidebarItem() { Key = null, Title = "All accounts", Count = AccountsList.Count, Banned = AccountsList.Count(a => AccountRowRenderer.StateOf(a) == AccountState.Banned), NeedLogin = AccountsList.Count(a => AccountRowRenderer.StateOf(a) == AccountState.NeedsLogin) }
             };
 
             foreach (string Key in AccountsList.Select(a => a.Group).Distinct().OrderBy(k => k, StringComparer.CurrentCulture))
@@ -633,12 +648,15 @@ namespace RBX_Alt_Manager
                     Key = Key,
                     Title = GroupTitleOf(Key),
                     Count = InGroup.Count,
-                    Banned = InGroup.Count(a => AccountRowRenderer.StateOf(a) == AccountState.Banned)
+                    Banned = InGroup.Count(a => AccountRowRenderer.StateOf(a) == AccountState.Banned),
+                    NeedLogin = InGroup.Count(a => AccountRowRenderer.StateOf(a) == AccountState.NeedsLogin)
                 });
             }
 
             GroupsSidebar.SetGroups(Items);
             GroupsSidebar.SetActive(ActiveGroupKey);
+
+            if (!QuietCheckStarted && AccountsList.Count > 0 && !PasswordPanel.Visible) QuietSessionCheck();
 
             UpdateGroupHeader();
         }
@@ -799,51 +817,37 @@ namespace RBX_Alt_Manager
 
             BanTokenSource = new CancellationTokenSource();
             var Token = BanTokenSource.Token;
-            var Results = new ConcurrentDictionary<Account, BanCheckResult>();
-            int Done = 0;
-            bool Stopped = false;
+            bool Stopped = false, PublicFailed = false;
+            HashSet<long> BannedSet = null;
+            var Sessions = new ConcurrentDictionary<Account, AccountChecks.SessionInfo>();
 
-            CheckBansButton.Text = $"0/{Accounts.Count} · Stop";
+            CheckBansButton.Text = "Checking… · Stop";
 
-            using (var Gate = new SemaphoreSlim(3))
+            try
             {
-                async Task CheckOne(Account A)
-                {
-                    await Gate.WaitAsync(Token);
+                // 1) terminated accounts: one request per 100 accounts
+                BannedSet = await AccountChecks.BannedIds(Accounts.Select(a => a.UserID).ToList(), Token);
+                PublicFailed = BannedSet == null;
 
-                    try { Results[A] = await AccountChecks.Check(A, Token); }
-                    catch (OperationCanceledException) { throw; }
-                    catch (Exception x) { Results[A] = BanCheckResult.Unknown; Program.Logger.Warn($"[BanCheck] {A.Username}: {x.Message}"); }
-                    finally
-                    {
-                        Gate.Release();
+                // 2) every other account: is it still logged in (+ e-mail)
+                var ToCheck = Accounts.Where(a => BannedSet == null || !BannedSet.Contains(a.UserID)).ToList();
 
-                        int D = Interlocked.Increment(ref Done);
-                        CheckBansButton.InvokeIfRequired(() => CheckBansButton.Text = $"{D}/{Accounts.Count} · Stop");
-                    }
-                }
-
-                try { await Task.WhenAll(Accounts.Select(CheckOne).ToList()); }
-                catch (OperationCanceledException) { Stopped = true; }
+                await RunSessionChecks(ToCheck, Sessions, Token, (Done, Total) => CheckBansButton.Text = $"{Done}/{Total} · Stop");
             }
+            catch (OperationCanceledException) { Stopped = true; }
 
             string Now = DateTime.Now.ToString("yyyy-MM-dd HH:mm");
 
-            foreach (var Pair in Results)
-            {
-                var A = Pair.Key;
-
-                switch (Pair.Value)
+            if (BannedSet != null)
+                foreach (var A in Accounts)
                 {
-                    case BanCheckResult.Banned: A.Fields["BanStatus"] = "Banned"; break;
-                    case BanCheckResult.TempBanned: A.Fields["BanStatus"] = "TempBanned"; break;
-                    case BanCheckResult.NeedsLogin: A.Fields["BanStatus"] = "NeedsLogin"; break;
-                    case BanCheckResult.Ok: A.Fields.Remove("BanStatus"); break;
-                    default: continue; // could not be checked, keep the old mark
+                    if (BannedSet.Contains(A.UserID)) A.Fields["BanStatus"] = "Banned";
+                    else if (A.GetField("BanStatus") == "Banned") A.Fields.Remove("BanStatus"); // unbanned again
+
+                    A.Fields["BanChecked"] = Now;
                 }
 
-                A.Fields["BanChecked"] = Now;
-            }
+            foreach (var Pair in Sessions) AccountChecks.Apply(Pair.Key, Pair.Value);
 
             SaveAccounts(true);
 
@@ -851,21 +855,82 @@ namespace RBX_Alt_Manager
             BanTokenSource = null;
             CheckBansButton.Text = "Check for bans";
 
+            RefreshAfterChecks();
+
+            int Banned = BannedSet?.Count ?? 0;
+            int Temp = Sessions.Count(r => r.Value.Result == BanCheckResult.TempBanned);
+            int NeedLogin = Sessions.Count(r => r.Value.Result == BanCheckResult.NeedsLogin);
+            int Unknown = Sessions.Count(r => r.Value.Result == BanCheckResult.Unknown);
+
+            string Summary = (Stopped ? "Stopped before the end.\n\n" : $"Checked {Accounts.Count} accounts.\n\n") +
+                             (PublicFailed ? "Roblox did not answer the ban lookup – try again in a minute.\n" : $"Banned: {Banned}\n") +
+                             (Temp > 0 ? $"Temporarily banned: {Temp}\n" : string.Empty) +
+                             $"Not logged in any more: {NeedLogin}" +
+                             (Unknown > 0 ? $"\nCould not be checked: {Unknown}" : string.Empty) +
+                             (Banned + Temp > 0 ? "\n\nBanned accounts are marked red. Nothing was deleted or moved." : string.Empty) +
+                             (NeedLogin > 0 ? "\nNot logged in accounts have a \"Re-login\" button on their card." : string.Empty);
+
+            MessageBox.Show(Summary, "Check for bans", MessageBoxButtons.OK, Banned + Temp > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
+        }
+
+        private async Task RunSessionChecks(List<Account> Accounts, ConcurrentDictionary<Account, AccountChecks.SessionInfo> Results, CancellationToken Token, Action<int, int> Progress = null)
+        {
+            int Done = 0;
+
+            using (var Gate = new SemaphoreSlim(4))
+            {
+                async Task One(Account A)
+                {
+                    await Gate.WaitAsync(Token);
+
+                    try { Results[A] = await AccountChecks.CheckSession(A, !AccountChecks.CheckedWithin(A, "EmailChecked", TimeSpan.FromDays(3)) || !A.Fields.ContainsKey("Email"), Token); }
+                    catch (OperationCanceledException) { throw; }
+                    catch (Exception x) { Program.Logger.Warn($"[SessionCheck] {A.Username}: {x.Message}"); }
+                    finally
+                    {
+                        Gate.Release();
+                        int D = Interlocked.Increment(ref Done);
+                        if (Progress != null) this.InvokeIfRequired(() => Progress(D, Accounts.Count));
+                    }
+                }
+
+                await Task.WhenAll(Accounts.Select(One).ToList());
+            }
+        }
+
+        private void RefreshAfterChecks()
+        {
             AccountsView.Invalidate();
             UpdateGroupSidebar();
             AccountCard.RefreshState();
             Grid.Invalidate();
+        }
 
-            int Banned = Results.Count(r => r.Value == BanCheckResult.Banned || r.Value == BanCheckResult.TempBanned);
-            int NeedLogin = Results.Count(r => r.Value == BanCheckResult.NeedsLogin);
-            int Unknown = Results.Count(r => r.Value == BanCheckResult.Unknown);
+        private bool QuietCheckStarted;
 
-            string Summary = $"{(Stopped ? $"Stopped after {Results.Count} of {Accounts.Count} accounts.\n\n" : $"Checked {Accounts.Count} accounts.\n\n")}" +
-                             $"Banned: {Banned}\nNeed a new login (session expired): {NeedLogin}" +
-                             (Unknown > 0 ? $"\nCould not be checked: {Unknown}" : string.Empty) +
-                             (Banned > 0 ? "\n\nBanned accounts are marked red. Nothing was deleted or moved." : string.Empty);
+        /// <summary>Once after the accounts are loaded: which accounts are no longer logged in (+ e-mails). Quiet, read only, skips accounts checked in the last 2 hours.</summary>
+        private async void QuietSessionCheck()
+        {
+            if (QuietCheckStarted || AccountsList == null || AccountsList.Count == 0) return;
 
-            MessageBox.Show(Summary, "Check for bans", MessageBoxButtons.OK, Banned > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
+            QuietCheckStarted = true;
+
+            await Task.Delay(4000);
+
+            var Due = AccountsList.Where(a => a.GetField("BanStatus") != "Banned" && !AccountChecks.CheckedWithin(a, "SessionChecked", TimeSpan.FromHours(2))).ToList();
+
+            if (Due.Count == 0 || BanTokenSource != null) return;
+
+            var Results = new ConcurrentDictionary<Account, AccountChecks.SessionInfo>();
+
+            try { await RunSessionChecks(Due, Results, CancellationToken.None); }
+            catch (Exception x) { Program.Logger.Warn($"[SessionCheck] {x.Message}"); }
+
+            foreach (var Pair in Results) AccountChecks.Apply(Pair.Key, Pair.Value);
+
+            if (Results.Count > 0) SaveAccounts(true);
+
+            RefreshAfterChecks();
         }
 
         private Form MakeDialog(string Title, int Height)

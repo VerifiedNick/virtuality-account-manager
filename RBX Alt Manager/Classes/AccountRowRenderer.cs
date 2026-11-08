@@ -39,7 +39,7 @@ namespace RBX_Alt_Manager.Classes
             switch (State)
             {
                 case AccountState.Banned: return A.GetField("BanStatus") == "TempBanned" ? "Banned (temp)" : "Banned";
-                case AccountState.NeedsLogin: return "Needs login";
+                case AccountState.NeedsLogin: return "Not logged in";
                 case AccountState.InGame: return "In game";
                 case AccountState.InStudio: return "In Studio";
                 case AccountState.Online: return "Online";

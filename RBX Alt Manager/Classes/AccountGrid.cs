@@ -33,6 +33,7 @@ namespace RBX_Alt_Manager.Classes
         public Action<List<Account>> SetSelection = _ => { };
         public Action<Account> JoinClicked = _ => { };
         public Action<Account> JoinMainClicked = _ => { };
+        public Action<Account> ReloginClicked = _ => { };
         public Action<Account, Point> ContextRequested = (_, __) => { };
         public Func<string, string> SectionTitle = g => g;
         public string MainName = "";
@@ -113,6 +114,9 @@ namespace RBX_Alt_Manager.Classes
 
         private Rectangle Shift(Rectangle R) => new Rectangle(R.X + AutoScrollPosition.X, R.Y + AutoScrollPosition.Y, R.Width, R.Height);
 
+        private static Rectangle FullButton(Rectangle Card) =>
+            new Rectangle(Card.X + Modern.Px(12), Card.Bottom - Modern.Px(12) - Modern.Px(30), Card.Width - Modern.Px(24), Modern.Px(30));
+
         private (Rectangle Join, Rectangle Main) Buttons(Rectangle Card)
         {
             int P = Modern.Px(12), H = Modern.Px(30), G = Modern.Px(8);
@@ -151,15 +155,24 @@ namespace RBX_Alt_Manager.Classes
                         var Icon = new Rectangle(H.X, H.Y + (H.Height - Sz) / 2, Sz, Sz);
                         Image Pic = GroupImages.GetImage(E.Section, out _);
 
+                        var Variant = GroupImages.Resolve(E.Section).Variant;
+
                         Modern.Box(G, Icon, Modern.Field, Modern.FieldBorder);
                         if (Pic != null) G.DrawImage(Pic, Rectangle.Inflate(Icon, -1, -1));
+                        Modern.VariantFrame(G, Icon, Variant, 1.5f);
 
                         string Title = SectionTitle(E.Section);
                         Font TF = Modern.Font(10f, FontStyle.Regular, true);
                         int TW = TextRenderer.MeasureText(Title, TF, Size.Empty, TextFormatFlags.NoPadding).Width;
+                        int X = Icon.Right + Modern.Px(10);
 
-                        Modern.Text_(G, Title, TF, new Rectangle(Icon.Right + Modern.Px(10), H.Y, H.Width, H.Height), Modern.Text, TextFormatFlags.NoPadding);
-                        Modern.Text_(G, $"{Count}", Modern.Font(8.5f), new Rectangle(Icon.Right + Modern.Px(10) + TW + Modern.Px(8), H.Y, Modern.Px(60), H.Height), Modern.Sub, TextFormatFlags.NoPadding);
+                        Modern.Text_(G, Title, TF, new Rectangle(X, H.Y, H.Width, H.Height), Modern.Text, TextFormatFlags.NoPadding);
+                        X += TW + Modern.Px(8);
+
+                        int TagW = Modern.VariantTag(G, Variant, X, H.Y + (H.Height - Modern.Px(14)) / 2, Modern.Px(14));
+                        if (TagW > 0) X += TagW + Modern.Px(8);
+
+                        Modern.Text_(G, $"{Count}", Modern.Font(8.5f), new Rectangle(X, H.Y, Modern.Px(60), H.Height), Modern.Sub, TextFormatFlags.NoPadding);
 
                         using (var P = new Pen(Modern.Line))
                             G.DrawLine(P, H.X, H.Bottom - 1, H.Right, H.Bottom - 1);
@@ -178,20 +191,21 @@ namespace RBX_Alt_Manager.Classes
         {
             AccountState State = AccountRowRenderer.StateOf(A);
             bool Banned = State == AccountState.Banned;
+            bool Login = State == AccountState.NeedsLogin;
 
             Color Fill = Sel ? Modern.Selected : (Hover ? Color.FromArgb(14, 14, 14) : Modern.Panel);
-            Color Border = Sel ? Modern.Accent : (Banned ? Modern.DangerLine : Modern.Line);
+            Color Border = Sel ? Modern.Accent : (Banned ? Modern.DangerLine : (Login ? Color.FromArgb(110, 84, 20) : Modern.Line));
 
             Modern.Box(G, R, Fill, Border);
 
-            if (Banned)
-                using (var B = new SolidBrush(Modern.Danger))
+            if (Banned || Login)
+                using (var B = new SolidBrush(Banned ? Modern.Danger : Modern.Warn))
                     G.FillRectangle(B, R.X, R.Y, Modern.Px(3), R.Height);
 
             int P = Modern.Px(12), Av = Modern.Px(56);
             var AvR = new Rectangle(R.X + P, R.Y + P, Av, Av);
 
-            Modern.Box(G, AvR, Modern.Field, Banned ? Modern.DangerLine : Modern.FieldBorder);
+            Modern.Box(G, AvR, Modern.Field, Banned ? Modern.DangerLine : (Login ? Modern.Warn : Modern.FieldBorder));
 
             Image Pic = AvatarCache.Get(A.UserID);
 
@@ -200,35 +214,68 @@ namespace RBX_Alt_Manager.Classes
             else
                 Modern.Text_(G, AccountRowRenderer.HideNames ? "··" : Modern.Initials(A.Username), Modern.Font(12f, FontStyle.Regular, true), AvR, Modern.Text2, TextFormatFlags.HorizontalCenter | TextFormatFlags.NoPadding);
 
-            // status dot on the avatar corner
             Color Dot = AccountRowRenderer.StateColor(State);
-            int DS = Modern.Px(10);
-            var DotR = new Rectangle(AvR.Right - DS + Modern.Px(3), AvR.Bottom - DS + Modern.Px(3), DS, DS);
-            using (var B = new SolidBrush(Dot)) G.FillRectangle(B, DotR);
-            using (var Pn = new Pen(Fill, Modern.Px(2))) G.DrawRectangle(Pn, DotR);
+
+            if (Login)
+            {
+                // "!" badge: this account has to log in again
+                int BS = Modern.Px(18);
+                var BR = new Rectangle(AvR.Right - BS + Modern.Px(4), AvR.Y - Modern.Px(4), BS, BS);
+                Modern.Box(G, BR, Modern.Warn);
+                Modern.Text_(G, "!", Modern.Font(9f, FontStyle.Bold, true), BR, Color.Black, TextFormatFlags.HorizontalCenter | TextFormatFlags.NoPadding);
+            }
+            else
+            {
+                int DS = Modern.Px(10);
+                var DotR = new Rectangle(AvR.Right - DS + Modern.Px(3), AvR.Bottom - DS + Modern.Px(3), DS, DS);
+                using (var B = new SolidBrush(Dot)) G.FillRectangle(B, DotR);
+                using (var Pn = new Pen(Fill, Modern.Px(2))) G.DrawRectangle(Pn, DotR);
+            }
 
             int TX = AvR.Right + Modern.Px(12), TW = R.Right - TX - P;
             string Name = AccountRowRenderer.HideNames ? (string.IsNullOrEmpty(A.Alias) ? "Hidden" : A.Alias) : A.Username;
+            Font NF = Modern.Font(10.25f, FontStyle.Regular, true);
 
-            Modern.Text_(G, Name, Modern.Font(10.25f, FontStyle.Regular, true), new Rectangle(TX, R.Y + P - Modern.Px(2), TW, Modern.Px(22)), Banned ? Modern.Danger : Modern.Text, TextFormatFlags.NoPadding);
+            Modern.Text_(G, Name, NF, new Rectangle(TX, R.Y + P - Modern.Px(2), TW, Modern.Px(22)), Banned ? Modern.Danger : Modern.Text, TextFormatFlags.NoPadding);
 
-            string Second = AccountRowRenderer.HideNames ? string.Empty : (!string.IsNullOrEmpty(A.Alias) ? A.Alias : FirstLine(A.Description));
-            if (!string.IsNullOrEmpty(Second))
-                Modern.Text_(G, Second, Modern.Font(8.5f), new Rectangle(TX, R.Y + P + Modern.Px(20), TW, Modern.Px(18)), Modern.Sub, TextFormatFlags.NoPadding);
+            if (!AccountRowRenderer.HideNames && !string.IsNullOrEmpty(A.Alias))
+            {
+                int NW = TextRenderer.MeasureText(Name, NF, Size.Empty, TextFormatFlags.NoPadding).Width + Modern.Px(8);
+                if (NW < TW - Modern.Px(30))
+                    Modern.Text_(G, A.Alias, Modern.Font(8.5f), new Rectangle(TX + NW, R.Y + P - Modern.Px(2), TW - NW, Modern.Px(22)), Modern.Sub, TextFormatFlags.NoPadding);
+            }
+
+            // e-mail (masked by Roblox)
+            string Mail = A.GetField("Email");
+            string MailText = !A.Fields.ContainsKey("Email") ? "e-mail: not checked yet" : (string.IsNullOrEmpty(Mail) ? "no e-mail" : Mail);
+            bool Verified = A.GetField("EmailVerified") == "true";
+
+            if (AccountRowRenderer.HideNames && !string.IsNullOrEmpty(Mail)) MailText = "e-mail hidden";
+
+            Modern.Text_(G, MailText + (Verified && !string.IsNullOrEmpty(Mail) ? "  ✓" : string.Empty), Modern.Font(8.5f), new Rectangle(TX, R.Y + P + Modern.Px(20), TW, Modern.Px(18)), string.IsNullOrEmpty(Mail) ? Modern.Faint : Modern.Sub, TextFormatFlags.NoPadding);
 
             string StatusText = AccountRowRenderer.StateText(A, State);
 
             if (State == AccountState.InGame && !string.IsNullOrEmpty(A.Presence?.lastLocation))
                 StatusText = A.Presence.lastLocation;
 
-            Modern.Text_(G, StatusText, Modern.Font(8.75f, FontStyle.Regular, State == AccountState.Banned || State == AccountState.InGame), new Rectangle(TX, R.Y + P + Modern.Px(38), TW, Modern.Px(18)), State == AccountState.Offline ? Modern.Sub : Dot, TextFormatFlags.NoPadding);
+            Modern.Text_(G, StatusText, Modern.Font(8.75f, FontStyle.Regular, State != AccountState.Offline && State != AccountState.Online), new Rectangle(TX, R.Y + P + Modern.Px(38), TW, Modern.Px(18)), State == AccountState.Offline ? Modern.Sub : Dot, TextFormatFlags.NoPadding);
 
             // quick buttons
-            var (JoinR, MainR) = Buttons(R);
-            bool Off = Banned;
+            if (Login)
+            {
+                var Full = FullButton(R);
+                bool H = A == HoverAccount && HoverButton == 3;
 
-            DrawButton(G, JoinR, "Join", false, !Off && A == HoverAccount && HoverButton == 1, Off);
-            DrawButton(G, MainR, $"Join {MainName}", true, !Off && A == HoverAccount && HoverButton == 2, Off);
+                Modern.Box(G, Full, H ? Color.FromArgb(40, 30, 6) : Color.FromArgb(24, 18, 4), Modern.Warn);
+                Modern.Text_(G, "Re-login", Modern.Font(8.75f, FontStyle.Regular, true), Full, Modern.Warn, TextFormatFlags.HorizontalCenter);
+                return;
+            }
+
+            var (JoinR, MainR) = Buttons(R);
+
+            DrawButton(G, JoinR, "Join", false, !Banned && A == HoverAccount && HoverButton == 1, Banned);
+            DrawButton(G, MainR, $"Join {MainName}", true, !Banned && A == HoverAccount && HoverButton == 2, Banned);
         }
 
         private static string FirstLine(string Text) => (Text ?? string.Empty).Split('\n')[0].Trim();
@@ -250,6 +297,9 @@ namespace RBX_Alt_Manager.Classes
                 var R = Shift(E.Card);
 
                 if (!R.Contains(P)) continue;
+
+                if (AccountRowRenderer.StateOf(E.Account) == AccountState.NeedsLogin)
+                    return (E.Account, FullButton(R).Contains(P) ? 3 : 0);
 
                 var (JoinR, MainR) = Buttons(R);
 
@@ -315,7 +365,7 @@ namespace RBX_Alt_Manager.Classes
                 SetSelection(new List<Account> { A });
                 SelectionAnchor = A;
 
-                if (Button == 1) JoinClicked(A); else JoinMainClicked(A);
+                if (Button == 1) JoinClicked(A); else if (Button == 2) JoinMainClicked(A); else ReloginClicked(A);
                 return;
             }
 

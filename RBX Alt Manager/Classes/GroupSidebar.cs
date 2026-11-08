@@ -15,6 +15,7 @@ namespace RBX_Alt_Manager.Classes
         public string Title;
         public int Count;
         public int Banned;
+        public int NeedLogin;
     }
 
     public class GroupSidebarEventArgs : EventArgs
@@ -186,23 +187,35 @@ namespace RBX_Alt_Manager.Classes
 
                 int BadgeW = 0;
 
-                if (Item.Banned > 0)
+                void Badge(string Text, Color Fore, Color Fill, Color Border)
                 {
-                    string Badge = $"{Item.Banned} banned";
-                    BadgeW = TextRenderer.MeasureText(Badge, CountFont, Size.Empty, TextFormatFlags.NoPadding).Width + (int)(10 * S);
-                    var BR = new Rectangle(R.Right - BadgeW - (int)(8 * S), R.Y + (R.Height - (int)(18 * S)) / 2, BadgeW, (int)(18 * S));
+                    int BW = TextRenderer.MeasureText(Text, CountFont, Size.Empty, TextFormatFlags.NoPadding).Width + (int)(10 * S);
+                    var BR = new Rectangle(R.Right - BadgeW - BW - (int)(8 * S), R.Y + (R.Height - (int)(18 * S)) / 2, BW, (int)(18 * S));
 
-                    Modern.Box(G, BR, Modern.DangerBg, Modern.DangerLine);
-                    TextRenderer.DrawText(G, Badge, CountFont, BR, Modern.Danger, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding);
-                    BadgeW += (int)(8 * S);
+                    Modern.Box(G, BR, Fill, Border);
+                    TextRenderer.DrawText(G, Text, CountFont, BR, Fore, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding);
+                    BadgeW += BW + (int)(4 * S);
                 }
+
+                if (Item.Banned > 0) Badge($"{Item.Banned} banned", Modern.Danger, Modern.DangerBg, Modern.DangerLine);
+                if (Item.NeedLogin > 0) Badge($"{Item.NeedLogin} login", Modern.Warn, Color.FromArgb(24, 18, 4), Color.FromArgb(80, 60, 15));
+                if (BadgeW > 0) BadgeW += (int)(4 * S);
 
                 int TextX = IconR.Right + (int)(10 * S);
                 var TitleR = new Rectangle(TextX, R.Y + (int)(7 * S), R.Right - TextX - (int)(6 * S) - BadgeW, (int)(20 * S));
                 var CountR = new Rectangle(TextX, TitleR.Bottom, TitleR.Width, (int)(17 * S));
 
                 TextRenderer.DrawText(G, Item.Title, TitleFont, TitleR, Active ? Modern.Text : Modern.Text2, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
-                TextRenderer.DrawText(G, Item.Count == 1 ? "1 account" : $"{Item.Count} accounts", CountFont, CountR, Modern.Sub, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
+                string CountText = Item.Count == 1 ? "1 account" : $"{Item.Count} accounts";
+                TextRenderer.DrawText(G, CountText, CountFont, CountR, Modern.Sub, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
+
+                if (Item.Key != null)
+                {
+                    int CW = TextRenderer.MeasureText(CountText, CountFont, Size.Empty, TextFormatFlags.NoPadding).Width + (int)(12 * S);
+
+                    if (CountR.Width > CW + (int)(50 * S))
+                        Modern.VariantTag(G, GroupImages.Resolve(Item.Key).Variant, CountR.X + CW, CountR.Y + (CountR.Height - (int)(13 * S)) / 2, (int)(13 * S));
+                }
             }
         }
 
@@ -223,15 +236,7 @@ namespace RBX_Alt_Manager.Classes
                 G.DrawImage(Picture, Rectangle.Inflate(R, -(int)(2 * S), -(int)(2 * S)));
                 G.SmoothingMode = Old;
 
-                if (Info?.Variant == EntryVariant.Rainbow || Info?.Variant == EntryVariant.Golden)
-                {
-                    Color Mark = Info.Variant == EntryVariant.Golden ? Color.FromArgb(220, 180, 60) : Color.FromArgb(200, 200, 200);
-                    string Letter = Info.Variant == EntryVariant.Golden ? "G" : "R";
-                    var MR = new Rectangle(R.Right - (int)(13 * S), R.Bottom - (int)(13 * S), (int)(13 * S), (int)(13 * S));
-
-                    Modern.Box(G, MR, Color.Black, Mark);
-                    TextRenderer.DrawText(G, Letter, Modern.Font(6f, FontStyle.Regular, true), MR, Mark, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
-                }
+                Modern.VariantFrame(G, R, Info?.Variant);
             }
             else
             {

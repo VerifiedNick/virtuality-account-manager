@@ -70,6 +70,49 @@ namespace RBX_Alt_Manager.Classes
         public static void Text_(Graphics G, string Value, Font F, Rectangle R, Color C, TextFormatFlags Extra = TextFormatFlags.Left) =>
             TextRenderer.DrawText(G, Value ?? string.Empty, F, R, C, Extra | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine);
 
+        public static readonly Color Gold = Color.FromArgb(230, 180, 40);
+
+        private static Brush RainbowBrush(Rectangle R)
+        {
+            var B = new LinearGradientBrush(new Rectangle(R.X - 1, R.Y - 1, R.Width + 2, R.Height + 2), Color.Red, Color.Violet, 45f);
+            B.InterpolationColors = new ColorBlend
+            {
+                Colors = new[] { Color.FromArgb(255, 70, 70), Color.FromArgb(255, 190, 50), Color.FromArgb(80, 220, 110), Color.FromArgb(60, 160, 255), Color.FromArgb(190, 90, 255) },
+                Positions = new[] { 0f, 0.25f, 0.5f, 0.75f, 1f }
+            };
+            return B;
+        }
+
+        /// <summary>Frame around a Rank picture: gold for golden, rainbow gradient for rainbow, nothing for normal.</summary>
+        public static void VariantFrame(Graphics G, Rectangle R, EntryVariant? Variant, float Width = 2f)
+        {
+            if (Variant != EntryVariant.Golden && Variant != EntryVariant.Rainbow) return;
+
+            int W = Math.Max(2, Px(Width));
+
+            using (Brush B = Variant == EntryVariant.Golden ? new SolidBrush(Gold) : RainbowBrush(R))
+            using (var P = new Pen(B, W) { Alignment = PenAlignment.Inset })
+                G.DrawRectangle(P, R.X, R.Y, R.Width - 1, R.Height - 1);
+        }
+
+        /// <summary>Small "GOLDEN" / "RAINBOW" tag. Returns its width (0 = nothing drawn).</summary>
+        public static int VariantTag(Graphics G, EntryVariant? Variant, int X, int Y, int Height)
+        {
+            if (Variant != EntryVariant.Golden && Variant != EntryVariant.Rainbow) return 0;
+
+            string T = Variant == EntryVariant.Golden ? "GOLDEN" : "RAINBOW";
+            Font F = Font(6.75f, FontStyle.Regular, true);
+            int W = TextRenderer.MeasureText(T, F, Size.Empty, TextFormatFlags.NoPadding).Width + Px(8);
+            var R = new Rectangle(X, Y, W, Height);
+
+            using (Brush B = Variant == EntryVariant.Golden ? new SolidBrush(Gold) : RainbowBrush(R))
+                G.FillRectangle(B, R);
+
+            TextRenderer.DrawText(G, T, F, R, Color.Black, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
+
+            return W;
+        }
+
         public static string Initials(string Name)
         {
             if (string.IsNullOrWhiteSpace(Name)) return "?";

@@ -1,6 +1,7 @@
 using Newtonsoft.Json.Linq;
 using RestSharp;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Threading;
@@ -34,30 +35,92 @@ namespace RBX_Alt_Manager.Classes
         }
 
         /// <summary>
-        /// 1) public profile (users.roblox.com/v1/users/{id}) says isBanned for terminated accounts,
-        /// 2) the account's own session tells if the cookie expired or the account is temporarily moderated.
-        /// Nothing is changed on the account.
+        /// Banned/terminated accounts in one request per 100 accounts: users.roblox.com/v1/users with excludeBannedUsers
+        /// leaves them out of the answer. Returns null for a batch that could not be checked.
         /// </summary>
-        public static async Task<BanCheckResult> Check(Account Account, CancellationToken Token)
+        public static async Task<HashSet<long>> BannedIds(IList<long> UserIds, CancellationToken Token)
         {
-            RestResponse Public = await Send(AccountManager.UsersClient, () => new RestRequest($"v1/users/{Account.UserID}", Method.Get), Token);
+            var Banned = new HashSet<long>();
 
-            if (Public.StatusCode == HttpStatusCode.NotFound) return BanCheckResult.Banned; // account no longer exists
+            for (int i = 0; i < UserIds.Count; i += 100)
+            {
+                var Batch = UserIds.Skip(i).Take(100).ToList();
+                RestResponse Response = await Send(AccountManager.UsersClient, () => new RestRequest("v1/users", Method.Post).AddJsonBody(new { userIds = Batch, excludeBannedUsers = true }), Token);
 
-            if (Public.StatusCode == HttpStatusCode.OK && Public.Content.TryParseJson(out JObject Info) && Info["isBanned"]?.Type == JTokenType.Boolean && Info["isBanned"].Value<bool>())
-                return BanCheckResult.Banned;
+                if (Response.StatusCode != HttpStatusCode.OK || !Response.Content.TryParseJson(out JObject Data) || !(Data["data"] is JArray Users))
+                    return null;
 
-            bool PublicOk = Public.StatusCode == HttpStatusCode.OK;
+                var Active = new HashSet<long>(Users.Select(u => u.Value<long?>("id") ?? 0));
+
+                foreach (long Id in Batch)
+                    if (!Active.Contains(Id)) Banned.Add(Id);
+            }
+
+            return Banned;
+        }
+
+        public class SessionInfo
+        {
+            public BanCheckResult Result = BanCheckResult.Unknown;
+            public string Email;      // masked by Roblox, e.g. ni***@gmail.com ("" = no email on the account)
+            public bool? Verified;
+        }
+
+        /// <summary>Checks the account's own login (cookie) and, if it works, reads the (masked) e-mail. Read only.</summary>
+        public static async Task<SessionInfo> CheckSession(Account Account, bool WithEmail, CancellationToken Token)
+        {
+            var Info = new SessionInfo();
 
             RestResponse Session = await Send(AccountManager.UsersClient, () => Account.MakeRequest("v1/users/authenticated", Method.Get), Token);
             string Body = Session.Content ?? string.Empty;
 
-            if (Session.StatusCode != HttpStatusCode.OK && Body.IndexOf("moderated", StringComparison.OrdinalIgnoreCase) >= 0) return BanCheckResult.TempBanned;
-            if (Session.StatusCode == HttpStatusCode.Unauthorized) return BanCheckResult.NeedsLogin;
-            if (Session.StatusCode == HttpStatusCode.OK) return BanCheckResult.Ok;
+            if (Session.StatusCode == HttpStatusCode.Unauthorized) { Info.Result = BanCheckResult.NeedsLogin; return Info; }
+            if (Session.StatusCode != HttpStatusCode.OK && Body.IndexOf("moderated", StringComparison.OrdinalIgnoreCase) >= 0) { Info.Result = BanCheckResult.TempBanned; return Info; }
+            if (Session.StatusCode != HttpStatusCode.OK) return Info;
 
-            return PublicOk ? BanCheckResult.Ok : BanCheckResult.Unknown;
+            Info.Result = BanCheckResult.Ok;
+
+            if (WithEmail)
+            {
+                RestResponse Mail = await Send(AccountManager.AccountClient, () => Account.MakeRequest("v1/email", Method.Get), Token);
+
+                if (Mail.StatusCode == HttpStatusCode.OK && Mail.Content.TryParseJson(out JObject M))
+                {
+                    Info.Email = M["emailAddress"]?.Type == JTokenType.String ? M["emailAddress"].Value<string>() : string.Empty;
+                    Info.Verified = M["verified"]?.Type == JTokenType.Boolean ? M["verified"].Value<bool>() : (bool?)null;
+                }
+            }
+
+            return Info;
         }
+
+        /// <summary>Writes a session result onto the account (Fields only, nothing else is touched).</summary>
+        public static void Apply(Account Account, SessionInfo Info)
+        {
+            string Now = DateTime.Now.ToString("yyyy-MM-dd HH:mm");
+
+            switch (Info.Result)
+            {
+                case BanCheckResult.NeedsLogin: if (Account.GetField("BanStatus") != "Banned") Account.Fields["BanStatus"] = "NeedsLogin"; break;
+                case BanCheckResult.TempBanned: Account.Fields["BanStatus"] = "TempBanned"; break;
+                case BanCheckResult.Ok:
+                    if (Account.GetField("BanStatus") == "NeedsLogin" || Account.GetField("BanStatus") == "TempBanned") Account.Fields.Remove("BanStatus");
+                    break;
+                default: return;
+            }
+
+            Account.Fields["SessionChecked"] = Now;
+
+            if (Info.Email != null)
+            {
+                Account.Fields["Email"] = Info.Email;
+                Account.Fields["EmailVerified"] = Info.Verified == true ? "true" : "false";
+                Account.Fields["EmailChecked"] = Now;
+            }
+        }
+
+        public static bool CheckedWithin(Account Account, string Field, TimeSpan Age) =>
+            DateTime.TryParse(Account.GetField(Field), out DateTime When) && DateTime.Now - When < Age;
 
         public static async Task<(FriendResult Result, string Message)> SendFriendRequest(Account Account, long TargetUserId, CancellationToken Token)
         {

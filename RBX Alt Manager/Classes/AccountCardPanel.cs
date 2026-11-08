@@ -31,7 +31,7 @@ namespace RBX_Alt_Manager.Classes
         private bool PasswordVisible;
 
         // painted areas, filled by OnLayout
-        private Rectangle AvatarR, NameR, ChipsR, WarningR, LoginBoxR, LoginCaptionR, UserFieldR, PassFieldR, CopyHintR, LoginHintR, MainRowR;
+        private Rectangle AvatarR, NameR, ChipsR, WarningR, LoginBoxR, LoginCaptionR, UserFieldR, PassFieldR, EmailR, CopyHintR, LoginHintR, MainRowR;
 
         public AccountCardPanel()
         {
@@ -124,7 +124,8 @@ namespace RBX_Alt_Manager.Classes
             int Eye = FieldH - Modern.Px(10);
             ShowPassword.SetBounds(PassFieldR.Right - Eye - Modern.Px(5), FY + Modern.Px(5), Eye, Eye);
 
-            CopyHintR = new Rectangle(UserFieldR.X, PassFieldR.Bottom + Modern.Px(6), W - Inner * 2, Modern.Px(18));
+            EmailR = new Rectangle(UserFieldR.X, PassFieldR.Bottom + Modern.Px(8), W - Inner * 2, Modern.Px(18));
+            CopyHintR = new Rectangle(UserFieldR.X, EmailR.Bottom + Modern.Px(2), W - Inner * 2, Modern.Px(18));
             LoginBoxR.Height = CopyHintR.Bottom + Inner - LoginBoxR.Y;
             Y = LoginBoxR.Bottom + Modern.Px(14);
 
@@ -167,14 +168,18 @@ namespace RBX_Alt_Manager.Classes
             Image Picture = null;
             string GroupKey = Accounts.Count > 0 && Accounts.All(a => a.Group == Accounts[0].Group) ? Accounts[0].Group : null;
 
-            if (GroupKey != null) Picture = GroupImages.GetImage(GroupKey, out _);
+            GroupPetInfo EntryInfo = null;
+
+            if (One != null && !AccountRowRenderer.HideNames) Picture = AvatarCache.Get(One.UserID);
+            if (Picture == null && GroupKey != null && One == null) Picture = GroupImages.GetImage(GroupKey, out EntryInfo);
 
             Modern.Box(G, AvatarR, Banned ? Modern.DangerBg : Modern.Field, Banned ? Modern.DangerLine : Modern.FieldBorder);
 
             if (Picture != null && Accounts.Count > 0)
             {
-                var Inset = Rectangle.Inflate(AvatarR, -Modern.Px(4), -Modern.Px(4));
+                var Inset = Rectangle.Inflate(AvatarR, -1, -1);
                 G.DrawImage(Picture, Inset);
+                Modern.VariantFrame(G, AvatarR, EntryInfo?.Variant);
             }
             else
             {
@@ -258,7 +263,22 @@ namespace RBX_Alt_Manager.Classes
                 Modern.Text_(G, WithPw == 0 ? "no passwords saved" : $"{WithPw} passwords", Modern.Font(9.5f), PassText, WithPw == 0 ? Modern.Faint : Modern.Text2, TextFormatFlags.NoPadding);
             }
 
-            Modern.Text_(G, "Copied data is cleared from the clipboard after 30 seconds.", Modern.Font(8f), CopyHintR, Modern.Sub, TextFormatFlags.NoPadding);
+            // e-mail of the account (Roblox only gives it masked)
+            string MailLine = "E-mail: –";
+
+            if (One != null)
+            {
+                string Mail = One.GetField("Email");
+
+                if (!One.Fields.ContainsKey("Email")) MailLine = "E-mail: not checked yet";
+                else if (string.IsNullOrEmpty(Mail)) MailLine = "E-mail: none on this account";
+                else MailLine = $"E-mail: {(AccountRowRenderer.HideNames ? "hidden" : Mail)}{(One.GetField("EmailVerified") == "true" ? "  (verified)" : "  (not verified)")}";
+            }
+            else if (Accounts.Count > 1)
+                MailLine = $"E-mail: {Accounts.Count(a => !string.IsNullOrEmpty(a.GetField("Email")))} of {Accounts.Count} have one";
+
+            Modern.Text_(G, MailLine, Modern.Font(8.5f), EmailR, Modern.Text2, TextFormatFlags.NoPadding);
+            Modern.Text_(G, "Copies are cleared from the clipboard after 30 s.", Modern.Font(8f), CopyHintR, Modern.Sub, TextFormatFlags.NoPadding);
 
             TextRenderer.DrawText(G, "Opens the Roblox login with username and password filled in. You only do the captcha / 2-step code.", Modern.Font(8f), LoginHintR, Modern.Sub, TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix | TextFormatFlags.Top);
 
