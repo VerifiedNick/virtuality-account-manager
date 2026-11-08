@@ -121,20 +121,14 @@ namespace RBX_Alt_Manager.Forms
             ModernToggle Async = null;
             FieldBox Delay = null;
 
-            ModernToggle Smart = null;
-
-            Smart = Toggle(S, "Start the next account when the window is open", "Fastest safe way: the next account starts as soon as the Roblox window of the previous one is open (instead of waiting a fixed time). On by default.",
-                () => !General.Exists("WaitForWindow") || General.Get<bool>("WaitForWindow"),
-                V => { General.Set("WaitForWindow", Bool(V)); Save(); if (Delay != null) Delay.Enabled = !V && !General.Get<bool>("AsyncJoin"); });
-
             Async = Toggle(S, "Launch all at once", "Starts every selected account at the same time instead of one after another.",
                 () => General.Get<bool>("AsyncJoin"),
-                V => { General.Set("AsyncJoin", Bool(V)); Save(); if (Delay != null) Delay.Enabled = !V && !(!General.Exists("WaitForWindow") || General.Get<bool>("WaitForWindow")); });
+                V => { General.Set("AsyncJoin", Bool(V)); Save(); if (Delay != null) Delay.Enabled = !V; });
 
-            Delay = Number(S, "Delay between accounts", "Seconds between two launches. Only used when the option above is off.", 0, 60,
-                () => General.Get<decimal>("AccountJoinDelay"), V => { General.Set("AccountJoinDelay", V.ToString(CultureInfo.InvariantCulture)); Save(); }, true);
+            Delay = Number(S, "Seconds between game starts", "The next account starts this many seconds after the previous one, without waiting for its game to load. 2–3 s = the games load almost at once; raise it if Roblox shows errors.", 0, 60,
+                () => General.Exists("LaunchInterval") ? General.Get<decimal>("LaunchInterval") : 3, V => { General.Set("LaunchInterval", V.ToString(CultureInfo.InvariantCulture)); Save(); }, true);
 
-            Refreshers.Add(() => Delay.Enabled = !General.Get<bool>("AsyncJoin") && General.Exists("WaitForWindow") && !General.Get<bool>("WaitForWindow"));
+            Refreshers.Add(() => Delay.Enabled = !General.Get<bool>("AsyncJoin"));
 
             Toggle(S, "All accounts join the same server", "Off by default – every account joins normally, exactly like Roblox does it. Turn on only if you want them bundled: then, with an empty Job ID, the first account picks a server and the others follow it.",
                 () => General.Get<bool>("SameServer"), V => { General.Set("SameServer", Bool(V)); Save(); });

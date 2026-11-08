@@ -23,7 +23,7 @@ namespace RBX_Alt_Manager.Classes
     public static class AppUpdate
     {
         /// <summary>Raise this by one for every released build; must match Download/version.txt in the repo.</summary>
-        public const int BuildNumber = 6;
+        public const int BuildNumber = 7;
 
         private const string Base = "https://raw.githubusercontent.com/VerifiedNick/virtuality-manager/main/Download/";
         private const string VersionUrl = Base + "version.txt";

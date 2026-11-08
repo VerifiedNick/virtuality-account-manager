@@ -122,7 +122,7 @@ namespace RBX_Alt_Manager
             if (!General.Exists("CheckForUpdates")) General.Set("CheckForUpdates", "true");
             if (!General.Exists("AccountJoinDelay")) General.Set("AccountJoinDelay", "8");
             if (!General.Exists("AsyncJoin")) General.Set("AsyncJoin", "false");
-            if (!General.Exists("WaitForWindow")) General.Set("WaitForWindow", "true");
+            if (!General.Exists("LaunchInterval")) General.Set("LaunchInterval", "3");
             if (!General.Exists("DisableAgingAlert")) General.Set("DisableAgingAlert", "false");
             if (!General.Exists("SavePasswords")) General.Set("SavePasswords", "true");
             if (!General.Exists("ServerRegionFormat")) General.Set("ServerRegionFormat", "<city>, <countryCode>", "Visit http://ip-api.com/json/1.1.1.1 to see available format options");
@@ -2185,7 +2185,7 @@ namespace RBX_Alt_Manager
             int Delay = General.Exists("AccountJoinDelay") ? General.Get<int>("AccountJoinDelay") : 8;
 
             bool AsyncJoin = General.Get<bool>("AsyncJoin");
-            bool SmartWait = !AsyncJoin && (!General.Exists("WaitForWindow") || General.Get<bool>("WaitForWindow")); // next account as soon as this window is open
+            int Interval = General.Exists("LaunchInterval") ? Math.Max(0, General.Get<int>("LaunchInterval")) : 3; // games start one after another every few seconds, nobody waits for a game to finish loading
             CancellationTokenSource Token = LauncherToken;
 
             // same server, step 1: a server where everybody fits → all join it directly (no waiting for the first one)
@@ -2241,7 +2241,7 @@ namespace RBX_Alt_Manager
                     }
                 }
 
-                string JoinResult = await account.JoinServer(PlaceId, JobId, FollowUser, VIPServer);
+                string JoinResult = await account.JoinServer(PlaceId, JobId, FollowUser, VIPServer, false, AsyncJoin);
                 bool JoinFailed = !string.IsNullOrEmpty(JoinResult) && JoinResult.StartsWith("ERROR");
 
                 if (JoinFailed)
@@ -2272,18 +2272,8 @@ namespace RBX_Alt_Manager
                 }
                 else if (JoinFailed)
                 { } // nothing was started: go straight on to the next account
-                else if (SmartWait)
-                {
-                    // as fast as safely possible: the next account starts as soon as this one's Roblox window is open (at most 30 s), then a short breather
-                    if (Index < Accounts.Count)
-                    {
-                        Activities.Update(Job, $"Joining {Index}/{Accounts.Count} · waiting for the {account.Username} window");
-                        await account.WaitForWindow(30, Token.Token);
-                        try { await Task.Delay(1500, Token.Token); } catch (TaskCanceledException) { }
-                    }
-                }
                 else
-                    try { await Task.Delay(Delay * 1000, Token.Token); } catch (TaskCanceledException) { }
+                    try { await Task.Delay(Interval * 1000, Token.Token); } catch (TaskCanceledException) { }
 
                 LaunchNext = false;
             }
