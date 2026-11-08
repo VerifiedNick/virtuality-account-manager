@@ -54,7 +54,7 @@ namespace RBX_Alt_Manager.Classes
         public string MainName = string.Empty;
         private string MainLabel => string.IsNullOrEmpty(MainName) ? "Join …" : $"Join {MainName}";
 
-        private int Pad => Modern.Px(14);
+        private int Pad => Modern.Px(4); // top/bottom only: the cards run flush with the title and buttons above
         private int GapX => Modern.Px(10);
         private int CardMinW => Modern.Px(232);
         private int CardH => Modern.Px(138);
@@ -123,14 +123,15 @@ namespace RBX_Alt_Manager.Classes
         {
             Entries.Clear();
 
-            int W = ClientSize.Width;
-            int Cols = Math.Max(1, (W - Pad * 2 + GapX) / (CardMinW + GapX));
-            int CardW = Math.Max(Modern.Px(160), (W - Pad * 2 - GapX * (Cols - 1)) / Cols);
+            // the scrollbar lane is always reserved, so the cards end at the same place with or without a scrollbar
+            int W = Math.Max(Modern.Px(160), Width - SystemInformation.VerticalScrollBarWidth);
+            int Cols = Math.Max(1, (W + GapX) / (CardMinW + GapX));
+            int CardW = Math.Max(Modern.Px(160), (W - GapX * (Cols - 1)) / Cols);
             int Y = Pad, Col = 0;
             string LastGroup = null;
             bool First = true;
 
-            if (RowMode_) { Cols = 1; CardW = W - Pad * 2; }
+            if (RowMode_) { Cols = 1; CardW = W; }
 
             int ItemH = RowMode_ ? RowH : CardH, ItemGap = RowMode_ ? RowGap : GapX;
 
@@ -145,14 +146,14 @@ namespace RBX_Alt_Manager.Classes
 
                     Col = 0;
                     E.Section = A.Group;
-                    E.Header = new Rectangle(Pad, Y, W - Pad * 2, HeaderH);
+                    E.Header = new Rectangle(0, Y, W, HeaderH);
                     Y += HeaderH + Modern.Px(4);
                 }
 
                 First = false;
                 LastGroup = A.Group;
 
-                E.Card = new Rectangle(Pad + Col * (CardW + GapX), Y, CardW, ItemH);
+                E.Card = new Rectangle(Col * (CardW + GapX), Y, CardW, ItemH);
                 Entries.Add(E);
 
                 Col++;

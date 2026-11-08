@@ -43,8 +43,12 @@ namespace RBX_Alt_Manager
         private readonly System.Windows.Forms.Timer CardPresenceTimer = new System.Windows.Forms.Timer() { Interval = 60000 };
         private ModernLabel GroupsCaption, GroupTitleLabel, GroupSubLabel, TipLabel;
         private AccountCardPanel AccountCard;
-        private const int AccountCardWidth = 356;
-        private readonly System.Windows.Forms.Timer AccountCardAnim = new System.Windows.Forms.Timer() { Interval = 15 };
+        private static int AccountCardWidth => Px(356);
+        private readonly System.Windows.Forms.Timer AccountCardAnim = new System.Windows.Forms.Timer() { Interval = 8 };
+        private readonly System.Diagnostics.Stopwatch AccountCardWatch = new System.Diagnostics.Stopwatch();
+        private Panel AccountCardHost;
+        private int AccountCardFrom, AccountCardTo;
+        private double AccountCardMs;
         private bool AccountCardOpen;
         private ContextMenuStrip MoreToolsMenu;
         private ToolStripMenuItem HideUsernamesMenuItem;
@@ -87,12 +91,17 @@ namespace RBX_Alt_Manager
             HeaderBar = new LinePanel() { Dock = DockStyle.Top, Height = 64, BackColor = Modern.Panel, Lines = AnchorStyles.Bottom };
             SideBar = new LinePanel() { Dock = DockStyle.Left, Width = 266, BackColor = Modern.Panel, Lines = AnchorStyles.Right };
             CenterPane = new LinePanel() { Dock = DockStyle.Fill, BackColor = Modern.Bg };
-            AccountCard = new AccountCardPanel() { Dock = DockStyle.Right, Width = 0, Visible = false };
+            AccountCard = new AccountCardPanel() { Dock = DockStyle.None, Width = AccountCardWidth };
+
+            // the panel keeps its full width and never re-lays out; the host around it grows from 0 and clips it, so it really slides in from the right edge
+            AccountCardHost = new Panel() { Dock = DockStyle.Right, Width = 0, Visible = false, BackColor = Modern.Panel, Tag = "NoScaling" };
+            AccountCardHost.Controls.Add(AccountCard);
+            AccountCardHost.Layout += (s, e) => AccountCard.SetBounds(AccountCardHost.Width - AccountCardWidth, 0, AccountCardWidth, AccountCardHost.Height);
             AccountCardAnim.Tick += AccountCardAnim_Tick;
 
             // docking happens in reverse order: header first, then the sides, the list takes the rest
             Shell.Controls.Add(CenterPane);
-            Shell.Controls.Add(AccountCard);
+            Shell.Controls.Add(AccountCardHost);
             Shell.Controls.Add(SideBar);
             Shell.Controls.Add(HeaderBar);
 
@@ -467,7 +476,9 @@ namespace RBX_Alt_Manager
                 GroupSubLabel.SetBounds(P, P + RH - Px(16), GroupTitleLabel.Width, Px(16));
 
                 int ListTop = P + RH + Px(14);
-                ListFrame.SetBounds(P, ListTop, W, Math.Max(Px(60), CenterPane.Height - ListTop - Px(40)));
+                // cards line up with the title and the buttons above; the scrollbar sits in the right gutter instead of eating into the cards
+                int Lane = SystemInformation.VerticalScrollBarWidth;
+                ListFrame.SetBounds(P - 1, ListTop, W + Lane + 2, Math.Max(Px(60), CenterPane.Height - ListTop - Px(40)));
                 TipLabel.SetBounds(P, ListFrame.Bottom + Px(10), W, Px(18));
             };
 
@@ -1089,32 +1100,46 @@ namespace RBX_Alt_Manager
 
             var Selected = AccountsView.SelectedObjects.Cast<object>().OfType<Account>().ToList();
 
-            AccountCard.SetAccounts(Selected);
-
-            // nothing selected: the panel is not shown at all, instead of a "no account selected" placeholder; it slides in once something is picked
+            // nothing selected: the panel is not shown at all, instead of a "no account selected" placeholder; it slides in once something is picked.
+            // While it slides out it keeps showing the last account (cleared when it is gone), so it does not flash an empty state.
             bool ShouldBeOpen = Selected.Count > 0;
+
+            if (ShouldBeOpen) AccountCard.SetAccounts(Selected);
 
             if (ShouldBeOpen == AccountCardOpen) return;
 
             AccountCardOpen = ShouldBeOpen;
-            if (AccountCardOpen) AccountCard.Visible = true; // becomes invisible again only once the close animation reaches 0
+
+            if (AccountCardOpen) AccountCardHost.Visible = true; // becomes invisible again only once the close animation reaches 0
+
+            AccountCardFrom = AccountCardHost.Width;
+            AccountCardTo = AccountCardOpen ? AccountCardWidth : 0;
+            AccountCardMs = AccountCardOpen ? 460 : 280;
+            AccountCardWatch.Restart();
             AccountCardAnim.Start();
         }
 
         private void AccountCardAnim_Tick(object sender, EventArgs e)
         {
-            if (AccountCard == null) { AccountCardAnim.Stop(); return; }
+            if (AccountCardHost == null) { AccountCardAnim.Stop(); return; }
 
-            int Target = AccountCardOpen ? AccountCardWidth : 0;
-            int Remaining = Target - AccountCard.Width;
+            // time based, so it takes the same time on every PC however fast it can redraw; fast start, long soft landing
+            double T = Math.Min(1.0, AccountCardWatch.Elapsed.TotalMilliseconds / AccountCardMs);
+            double Eased = 1.0 - Math.Pow(1.0 - T, 4);
 
-            if (Remaining == 0) { AccountCardAnim.Stop(); if (!AccountCardOpen) AccountCard.Visible = false; return; }
+            int W = AccountCardFrom + (int)Math.Round((AccountCardTo - AccountCardFrom) * Eased);
+            if (AccountCardHost.Width != W) AccountCardHost.Width = W;
 
-            int Step = (int)Math.Ceiling(Math.Abs(Remaining) * 0.35);
-            if (Step < 1) Step = 1;
-            if (Step > Math.Abs(Remaining)) Step = Math.Abs(Remaining);
+            if (T < 1.0) return;
 
-            AccountCard.Width += Math.Sign(Remaining) * Step;
+            AccountCardAnim.Stop();
+            AccountCardWatch.Stop();
+
+            if (!AccountCardOpen)
+            {
+                AccountCardHost.Visible = false;
+                AccountCard.SetAccounts(null);
+            }
         }
 
         #endregion
