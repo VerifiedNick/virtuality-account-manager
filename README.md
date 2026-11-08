@@ -1,7 +1,7 @@
 # Virtuality Account Manager
 
-Ein Account Manager für Roblox: alle Accounts in einem Fenster, Login mit einem Klick, mehrere Roblox-Fenster gleichzeitig, Gruppen mit eigenem Bild, Join in denselben Server.
-Basiert auf dem [Roblox Account Manager von ic3w0lf22](https://github.com/ic3w0lf22/Roblox-Account-Manager) (GPL-3.0, siehe `LICENSE` und `README-Original.md`), komplett neu gestaltet.
+Ein Account Manager für Roblox, entwickelt von Nick: alle Accounts in einem Fenster, Login mit einem Klick, mehrere Roblox-Fenster gleichzeitig, Gruppen mit eigenem Bild, Join in denselben Server.
+Dank und Credits an ic3w0lf22, den ursprünglichen Gründer: basiert auf dem [Roblox Account Manager von ic3w0lf22](https://github.com/ic3w0lf22/Roblox-Account-Manager) (GPL-3.0, siehe `LICENSE` und `README-Original.md`), komplett neu gestaltet.
 
 ## ⬇️ Download
 

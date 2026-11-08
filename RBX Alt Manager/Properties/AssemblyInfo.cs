@@ -5,11 +5,11 @@ using System.Runtime.InteropServices;
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
 [assembly: AssemblyTitle("Virtuality Account Manager")]
-[assembly: AssemblyDescription("Created by ic3w0lf")]
+[assembly: AssemblyDescription("Virtuality Account Manager by Nick, based on the Roblox Account Manager by ic3w0lf (GPLv3)")]
 [assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCompany("ic3")]
+[assembly: AssemblyCompany("Nick")]
 [assembly: AssemblyProduct("Virtuality Account Manager")]
-[assembly: AssemblyCopyright("Copyright © ic3 2023")]
+[assembly: AssemblyCopyright("Copyright © Nick 2026 · based on work by ic3w0lf (GPLv3)")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
