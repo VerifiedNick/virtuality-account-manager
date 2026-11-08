@@ -133,7 +133,7 @@ namespace RBX_Alt_Manager
                 {
                     var Job = Jobs[Jobs.Count - 1];
                     int Dot = Px(7);
-                    bool On = (DateTime.Now.Millisecond / 400) % 2 == 0;
+                    bool On = (Environment.TickCount / 400) % 2 == 0;
 
                     using (var B = new SolidBrush(On ? Modern.AccentText : Modern.Accent)) G.FillRectangle(B, CX, CY + (CH - Dot) / 2, Dot, Dot);
 
@@ -1319,8 +1319,10 @@ namespace RBX_Alt_Manager
             catch (OperationCanceledException) { Stopped = true; }
             catch (Exception x) { Program.Logger.Error($"[BanCheck] {x}"); }
 
-            string Now = DateTime.Now.ToString("yyyy-MM-dd HH:mm");
+            PublicFailed = BannedSet == null; // also when the lookup threw
 
+            try
+            {
             if (BannedSet != null)
                 foreach (var A in Accounts)
                 {
@@ -1333,11 +1335,14 @@ namespace RBX_Alt_Manager
             foreach (var Pair in Sessions) AccountChecks.Apply(Pair.Key, Pair.Value);
 
             SaveAccounts(true);
-
-            Activities.End(Job);
-            BanTokenSource.Dispose();
-            BanTokenSource = null;
-            CheckBansButton.Text = "Check for bans";
+            }
+            finally
+            {
+                Activities.End(Job);
+                BanTokenSource.Dispose();
+                BanTokenSource = null;
+                CheckBansButton.Text = "Check for bans";
+            }
 
             RefreshAfterChecks();
 

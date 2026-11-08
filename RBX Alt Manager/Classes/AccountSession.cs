@@ -71,7 +71,7 @@ namespace RBX_Alt_Manager.Classes
                     return To == SessionStatus.NeedsLogin || To == SessionStatus.TempBanned || To == SessionStatus.Active;
 
                 case StatusSource.Login:
-                    return To == SessionStatus.Active && (From == SessionStatus.NeedsLogin || From == SessionStatus.TempBanned);
+                    return To == SessionStatus.Active && From == SessionStatus.NeedsLogin; // a temp ban only ends through a session check
 
                 default:
                     return false;
@@ -100,7 +100,7 @@ namespace RBX_Alt_Manager.Classes
             return true;
         }
 
-        /// <summary>A login worked: NeedsLogin / TempBanned end, and the session counts as checked now.</summary>
+        /// <summary>A login window worked: NeedsLogin ends, and the session counts as checked now.</summary>
         public static void LoggedIn(Account A, string Why)
         {
             Set(A, SessionStatus.Active, StatusSource.Login, Why);

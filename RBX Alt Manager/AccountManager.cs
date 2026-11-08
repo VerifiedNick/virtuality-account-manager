@@ -728,7 +728,7 @@ namespace RBX_Alt_Manager
                     if (!string.IsNullOrEmpty(Password)) exists.Password = Password; // never wipe a saved password (e.g. cookie re-import)
                     exists.LastUse = DateTime.Now;
 
-                    AccountSession.LoggedIn(exists, "new cookie"); // fresh login
+                    AccountSession.Set(exists, SessionStatus.Active, StatusSource.Login, "new cookie"); // fresh login (no "checked" stamp: the quiet check still looks at it)
 
                     Instance.RefreshView(exists);
                 }
@@ -935,7 +935,7 @@ namespace RBX_Alt_Manager
 
                         foreach (var Account in AccountsList.ToList())
                         {
-                            if (Account.GetField("NoCookieRefresh") == "true" || AccountSession.Of(Account) != SessionStatus.Active) continue;
+                            if (Account.GetField("NoCookieRefresh") == "true" || AccountSession.Of(Account) == SessionStatus.Banned || AccountSession.Of(Account) == SessionStatus.NeedsLogin) continue;
                             if ((DateTime.Now - Account.LastUse).TotalDays <= 7 || (DateTime.Now - Account.LastAttemptedRefresh).TotalDays < 1) continue;
 
                             Account.LastAttemptedRefresh = DateTime.Now;
