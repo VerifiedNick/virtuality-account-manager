@@ -138,16 +138,39 @@ namespace RBX_Alt_Manager.Classes
                 }
             }
 
-            var Options = new LaunchOptions { Headless = false, DefaultViewport = null, Args = Args.ToArray(), IgnoreHTTPSErrors = true };
+            // Roblox's "press and hold" human check fails in the old bundled Chromium, so the installed Chrome / Edge is used
+            // when there is one (own temporary profile, your normal browser is not touched). RAMSettings.ini: UseBundledChromium=true turns this off.
+            Args.Add("--disable-blink-features=AutomationControlled");
 
-            await Fetcher.DownloadAsync(BrowserFetcher.DefaultChromiumRevision);
+            string InstalledBrowser = AccountManager.General.Get<bool>("UseBundledChromium") ? null : FindInstalledBrowser();
+            var Options = new LaunchOptions { Headless = false, DefaultViewport = null, Args = Args.ToArray(), IgnoreHTTPSErrors = true, IgnoredDefaultArgs = new[] { "--enable-automation" } };
 
-            browser = (Browser)await new PuppeteerExtra().Use(new StealthPlugin()).LaunchAsync(Options);
+            if (InstalledBrowser != null)
+            {
+                Options.ExecutablePath = InstalledBrowser;
+
+                try { browser = (Browser)await new PuppeteerExtra().Use(new StealthPlugin()).LaunchAsync(Options); }
+                catch (Exception x)
+                {
+                    Program.Logger.Warn($"[AccountBrowser] {InstalledBrowser} could not be started, using the bundled Chromium: {x.Message}");
+                    InstalledBrowser = null;
+                    Options.ExecutablePath = null;
+                }
+            }
+
+            if (browser == null)
+            {
+                await Fetcher.DownloadAsync(BrowserFetcher.DefaultChromiumRevision);
+
+                browser = (Browser)await new PuppeteerExtra().Use(new StealthPlugin()).LaunchAsync(Options);
+            }
+
             page = (Page)(await browser.PagesAsync())[0];
 
             if (Proxy != null) browser.Disconnected += (s, e) => Proxy.Dispose();
 
-            await page.SetUserAgentAsync("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36");
+            if (InstalledBrowser == null) // a real Chrome sends its own, matching user agent
+                await page.SetUserAgentAsync("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36");
 
             if (Config?.PreNavigateActions != null)
                 foreach (var action in Config.PreNavigateActions)
@@ -177,11 +200,51 @@ namespace RBX_Alt_Manager.Classes
                     await page.EvaluateExpressionAsync(script);
         }
 
-        public async Task Login(string Username = "", string Password = "", string[] Arguments = null) => await LaunchBrowser("https://roblox.com/login", Arguments: Arguments, PostNavigation: async (page) => await LoginTask(page, Username, Password));
+        public static string FindInstalledBrowser()
+        {
+            string Local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            string PF = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+            string PF86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+
+            string Custom = AccountManager.General.Exists("LoginBrowserPath") ? AccountManager.General.Get("LoginBrowserPath") : null;
+
+            foreach (string Path_ in new[]
+            {
+                Custom,
+                System.IO.Path.Combine(PF, @"Google\Chrome\Application\chrome.exe"),
+                System.IO.Path.Combine(PF86, @"Google\Chrome\Application\chrome.exe"),
+                System.IO.Path.Combine(Local, @"Google\Chrome\Application\chrome.exe"),
+                System.IO.Path.Combine(PF86, @"Microsoft\Edge\Application\msedge.exe"),
+                System.IO.Path.Combine(PF, @"Microsoft\Edge\Application\msedge.exe")
+            })
+                if (!string.IsNullOrWhiteSpace(Path_) && File.Exists(Path_)) return Path_;
+
+            return null;
+        }
+
+        public async Task Login(string Username = "", string Password = "", string[] Arguments = null)
+        {
+            if (!string.IsNullOrEmpty(Password)) this.Password = Password; // re-login: keep the known password even if the login request is not seen
+
+            await LaunchBrowser("https://roblox.com/login", Arguments: Arguments, PostNavigation: async (page) => await LoginTask(page, Username, Password));
+        }
+
+        private bool AccountAdded;
 
         public async Task LoginTask(Page page, string Username = "", string Password = "")
         {
             page.RequestFinished += Page_RequestFinished;
+            page.FrameNavigated += async (s, e) =>
+            {
+                // after a successful login (also with captcha / 2-step code) Roblox sends you to /home
+                try
+                {
+                    if (e.Frame.ParentFrame == null && e.Frame.Url.Contains("roblox.com/home") && !AccountAdded &&
+                        (await page.GetCookiesAsync("https://roblox.com/")).FirstOrDefault(Cookie => Cookie.Name == ".ROBLOSECURITY") is CookieParam Cookie)
+                        await AddAccount(Cookie);
+                }
+                catch (Exception x) { Program.Logger.Warn($"[AccountBrowser] {x.Message}"); }
+            };
 
             await page.EvaluateExpressionAsync(@"document.body.classList.remove(""light-theme"");document.body.classList.add(""dark-theme"");");
 
@@ -321,6 +384,9 @@ namespace RBX_Alt_Manager.Classes
 
         private async Task AddAccount(CookieParam SecurityToken)
         {
+            if (AccountAdded) return;
+            AccountAdded = true;
+
             if (Proxy == null)
                 AccountManager.AddAccount(SecurityToken.Value, Password);
             else
