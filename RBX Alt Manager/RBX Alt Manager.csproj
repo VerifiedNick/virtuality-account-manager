@@ -401,6 +401,10 @@
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="Forms\SettingsPage.cs" />
+    <Compile Include="Nexus\AccountControl.Modern.cs">
+      <DependentUpon>AccountControl.cs</DependentUpon>
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="Forms\ServerList.Modern.cs">
       <DependentUpon>ServerList.cs</DependentUpon>
       <SubType>Form</SubType>

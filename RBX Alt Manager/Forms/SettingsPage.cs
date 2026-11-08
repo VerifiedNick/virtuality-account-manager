@@ -81,12 +81,11 @@ namespace RBX_Alt_Manager.Forms
                 V =>
                 {
                     General.Set("EnableMultiRbx", Bool(V)); Save();
-                    if (AccountManager.Instance != null && !AccountManager.Instance.UpdateMultiRoblox())
-                        ModernDialog.Show("Roblox is running right now. Multi Roblox starts working after you close every Roblox window.", "Multi Roblox", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    AccountManager.Instance?.UpdateMultiRoblox();
                 });
 
-            Toggle(S, "Hide the multi Roblox warning", "No message when multi Roblox can't start because Roblox is already open.",
-                () => General.Get<bool>("HideRbxAlert"), V => { General.Set("HideRbxAlert", Bool(V)); Save(); });
+            Toggle(S, "Close Roblox for multi Roblox", "If Roblox is open when the manager starts, it gets closed so multi Roblox works right away (no warning).",
+                () => !General.Exists("CloseRobloxForMulti") || General.Get<bool>("CloseRobloxForMulti"), V => { General.Set("CloseRobloxForMulti", Bool(V)); Save(); });
 
             Toggle(S, "Start with Windows", "Opens the manager when you log in to Windows.", GetStartup, SetStartup);
 
@@ -280,7 +279,9 @@ namespace RBX_Alt_Manager.Forms
             {
                 base.OnLayout(levent);
 
-                int G = Modern.Gutter, W = Math.Min(ClientSize.Width - G * 2, Modern.Px(860)), Y = G + AutoScrollPosition.Y;
+                if (Title == null || Sub == null) return; // layout runs while the panel is still being built
+
+                int G = Modern.Gutter, W = Math.Max(Modern.Px(420), ClientSize.Width - G * 2 - Modern.PageReserveRight), Y = G + AutoScrollPosition.Y;
 
                 // title + subtitle sit exactly like the group title on the accounts page
                 Title.SetBounds(G, Y - Modern.Px(4), W, Modern.Px(28));
@@ -321,7 +322,7 @@ namespace RBX_Alt_Manager.Forms
             protected override void OnLayout(LayoutEventArgs levent)
             {
                 base.OnLayout(levent);
-                if (Input == null) return;
+                if (Input == null || Title == null || Desc == null) return;
 
                 int IW = Modern.Px(InputWidth), IH = Input is ModernToggle ? Modern.Px(22) : ModernSkin.Row;
                 Input.SetBounds(Width - IW, (Height - IH) / 2, IW, IH);

@@ -262,6 +262,16 @@ namespace RBX_Alt_Manager
                     {
                         Application.EnableVisualStyles();
                         Application.SetCompatibleTextRenderingDefault(false);
+
+                        // errors inside the window: log them and show them in the Virtuality look instead of the Windows crash box
+                        Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+                        Application.ThreadException += (s, e) =>
+                        {
+                            Logger.Error($"[Unhandled] {e.Exception}");
+                            ModernDialog.Show($"{e.Exception.Message}\n\n{e.Exception.StackTrace}", "Something went wrong", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        };
+                        AppDomain.CurrentDomain.UnhandledException += (s, e) => Logger.Fatal($"[Unhandled] {e.ExceptionObject}");
+
                         Application.Run(new AccountManager());
                     }
                 }

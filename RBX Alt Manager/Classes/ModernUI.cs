@@ -43,6 +43,9 @@ namespace RBX_Alt_Manager.Classes
         /// <summary>Height of the first row in every column (search field, buttons above the list, header fields).</summary>
         public static int RowH => Px(38);
 
+        /// <summary>Width of the right column (account card). Pages end their content where the center column ends, like the Job ID field.</summary>
+        public static int PageReserveRight;
+
         [System.Runtime.InteropServices.DllImport("uxtheme.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
         private static extern int SetWindowTheme(IntPtr hWnd, string pszSubAppName, string pszSubIdList);
 
@@ -61,6 +64,9 @@ namespace RBX_Alt_Manager.Classes
         /// <summary>Segoe UI in points, already multiplied with the window scale.</summary>
         public static Font Font(float Points, FontStyle Style = FontStyle.Regular, bool Semibold = false)
         {
+            // readability: nothing below 9 pt (captions 8.25 pt)
+            if (Points < 9f) Points = Points < 8f ? 8.25f : 9f;
+
             string Key = $"{Points}|{Style}|{Semibold}|{S}";
 
             if (!Fonts.TryGetValue(Key, out Font F))
@@ -542,7 +548,7 @@ namespace RBX_Alt_Manager.Classes
                 if (!C.Visible) continue;
 
                 int PW = W >= 0 ? Modern.Px(W) : Math.Max(Modern.Px(20), Right - X - Fixed);
-                int PH = C is TextBox ? C.PreferredSize.Height : (C is Label ? C.PreferredSize.Height : Math.Min(Height - Modern.Px(8), Modern.Px(26)));
+                int PH = C is TextBox || C is NumericUpDown || C is Label ? C.PreferredSize.Height : Math.Min(Height - Modern.Px(8), Modern.Px(26));
 
                 C.SetBounds(X, (Height - PH) / 2, PW, PH);
 
@@ -579,6 +585,7 @@ namespace RBX_Alt_Manager.Classes
         public bool Bold { get; set; }
         public Color Color { get; set; } = Modern.Text;
         public bool Upper { get; set; }
+        public bool Center { get; set; }
 
         public ModernLabel()
         {
@@ -593,7 +600,7 @@ namespace RBX_Alt_Manager.Classes
         {
             e.Graphics.Clear(Parent?.BackColor ?? Modern.Bg);
             Modern.Prepare(e.Graphics);
-            Modern.Text_(e.Graphics, Upper ? Text?.ToUpperInvariant() : Text, Modern.Font(Points, FontStyle.Regular, Bold), ClientRectangle, Color, TextFormatFlags.NoPadding);
+            Modern.Text_(e.Graphics, Upper ? Text?.ToUpperInvariant() : Text, Modern.Font(Points, FontStyle.Regular, Bold), ClientRectangle, Color, TextFormatFlags.NoPadding | (Center ? TextFormatFlags.HorizontalCenter : TextFormatFlags.Left));
         }
     }
 }

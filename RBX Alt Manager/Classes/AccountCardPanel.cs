@@ -323,7 +323,7 @@ namespace RBX_Alt_Manager.Classes
             {
                 Modern.Box(G, ListBoxR, Modern.Bg, Modern.Line);
                 int Need = Accounts.Count(a => AccountRowRenderer.StateOf(a) == AccountState.NeedsLogin);
-                Modern.Text_(G, Need > 0 ? $"SELECTED · {Need} NOT LOGGED IN" : "SELECTED", Modern.Font(7.75f, FontStyle.Regular, true), ListCaptionR, Need > 0 ? Modern.Warn : Modern.Sub, TextFormatFlags.NoPadding);
+                Modern.Text_(G, Need > 0 ? $"{Need} TO LOG IN" : $"{Accounts.Count} SELECTED", Modern.Font(7.75f, FontStyle.Regular, true), ListCaptionR, Need > 0 ? Modern.Warn : Modern.Sub, TextFormatFlags.NoPadding);
 
                 TextRenderer.DrawText(G, "One login window at a time: do the captcha, then the next account. Each row has its own Login button too.", Modern.Font(8f), LoginHintR, Modern.Sub, TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix | TextFormatFlags.Top);
                 PaintMainRow(G);

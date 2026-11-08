@@ -24,7 +24,13 @@ namespace RBX_Alt_Manager
             SuspendLayout();
 
             Tabs.HideStrip = true;
-            OpenLogsButton.Visible = false;
+
+            // "L" in the corner becomes a normal button on the watcher page
+            Controls.Remove(OpenLogsButton);
+            OpenLogsButton.Text = "Open Roblox logs";
+            OpenLogsButton.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+            OpenLogsButton.Font = Modern.Font(9f, FontStyle.Regular, true);
+            RobloxScan.Controls.Add(OpenLogsButton);
 
             // labels move into the fields as captions
             foreach (var L in new Label[] { UsernameLabel, label1, uPlaceIDLabel, uUniverseIdLabel, OutfitUsernameLabel })
@@ -149,11 +155,13 @@ namespace RBX_Alt_Manager
             TabLayouts[RobloxScan] = () =>
             {
                 int G = Modern.Gutter, Y = G + RobloxScan.AutoScrollPosition.Y, H = ModernSkin.Row, ValueX = G + Modern.Px(400);
+                int TextX = G + Modern.Px(24); // labels start where the check box texts start
 
                 foreach (var (Left, Value, Unit) in WatcherRows)
                 {
                     int LH = Left is CheckBox ? Modern.Px(22) : Left.PreferredSize.Height;
-                    Left.SetBounds(G, Y + (H - LH) / 2, Modern.Px(380), LH);
+                    if (Left is CheckBox) Left.SetBounds(G, Y + (H - LH) / 2, Modern.Px(380), LH);
+                    else Left.SetBounds(TextX, Y + (H - LH) / 2, Modern.Px(356), LH);
 
                     if (Value != null) Value.SetBounds(ValueX, Y, Modern.Px(120), H);
 
@@ -165,6 +173,8 @@ namespace RBX_Alt_Manager
 
                     Y += H + Modern.Px(6);
                 }
+
+                OpenLogsButton.SetBounds(G, Y + Modern.Px(12), Modern.Px(170), H);
             };
 
             foreach (var Page_ in TabLayouts.Keys)
@@ -177,6 +187,9 @@ namespace RBX_Alt_Manager
             ResumeLayout(false);
 
             foreach (var L in TabLayouts.Values) L();
+
+            foreach (var List in new BrightIdeasSoftware.ObjectListView[] { ServerListView, GamesListView, FavoritesListView })
+                ModernSkin.SkinList(List);
         }
 
         /// <summary>Content frame from under the tool row to the bottom, gutter on every side.</summary>

@@ -84,6 +84,7 @@ namespace RBX_Alt_Manager
             BuildCenter();
             BuildCard();
             BuildPages();
+            BuildLockScreen();
 
             Controls.Add(Shell);
             Controls.Add(LegacyHolder);

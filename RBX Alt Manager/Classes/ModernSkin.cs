@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Drawing;
+using System.Linq;
 using System.Drawing.Drawing2D;
 using System.Drawing.Text;
 using System.Runtime.CompilerServices;
@@ -135,6 +136,13 @@ namespace RBX_Alt_Manager.Classes
                 }
 
                 FB.Invalidate();
+                return;
+            }
+
+            if (C is LinePanel && C.HasChildren) // our frames: keep their look, but style what's inside
+            {
+                foreach (Control Child in C.Controls) Style(Child);
+                HookAdded(C);
                 return;
             }
 
@@ -442,6 +450,10 @@ namespace RBX_Alt_Manager.Classes
             O.HeaderUsesThemes = false;
 
             if (O.RowHeight < Modern.Px(28)) O.RowHeight = Modern.Px(28);
+
+            // a column that fills the rest, so no empty (white) header piece is left on the right
+            if (O.Columns.Count > 0 && !O.Columns.Cast<ColumnHeader>().OfType<OLVColumn>().Any(c => c.FillsFreeSpace))
+                ((O.Columns[0] as OLVColumn) ?? O.AllColumns[0]).FillsFreeSpace = true;
 
             O.SelectedBackColor = SelectionBack;
             O.SelectedForeColor = Color.White;

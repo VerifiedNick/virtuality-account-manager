@@ -11,6 +11,7 @@ namespace RBX_Alt_Manager
     {
         private bool ModernBuilt;
         private ModernLabel ForLabel;
+        private ModernButton WhoFollowButton;
         private readonly List<(ModernLabel Caption, Control[] Row, int[] Widths)> Rows = new List<(ModernLabel, Control[], int[])>();
 
         public void UseModernLayout()
@@ -46,8 +47,27 @@ namespace RBX_Alt_Manager
             button7.Text = "Unlock";
             button2.Text = "Sign out of all other sessions";
 
+            // "who can follow" as a menu button in the same look as everything else (the combo box stays hidden and does the work)
             WhoFollow.DropDownStyle = ComboBoxStyle.DropDownList;
-            WhoFollow.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+            WhoFollow.Visible = false;
+
+            var FollowMenu = new ContextMenuStrip();
+            WhoFollowButton = new ModernButton() { Text = "Who can follow me…", Menu = FollowMenu, SplitMenu = false };
+
+            for (int i = 0; i < WhoFollow.Items.Count; i++)
+            {
+                int Index = i;
+                string Name = WhoFollow.Items[i].ToString();
+                FollowMenu.Items.Add(Name, null, (s, e) =>
+                {
+                    if (AccountManager.SelectedAccount == null) { ModernDialog.Show("Select an account first.", "Who can follow", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
+                    WhoFollow.SelectedIndex = Index; // runs the old handler (sets the privacy on Roblox)
+                    WhoFollowButton.Text = $"Who can follow: {Name}";
+                });
+            }
+
+            ModernSkin.StyleMenu(FollowMenu);
+            Controls.Add(WhoFollowButton);
 
             foreach (Control C in new Control[] { button1, button2, button3, button7, Block, SetDisplayName, AddFriend, WhoFollow })
                 C.Anchor = AnchorStyles.Top | AnchorStyles.Left;
@@ -63,7 +83,7 @@ namespace RBX_Alt_Manager
             Rows.Add((Cap("E-mail (uses the current password above)"), new Control[] { Email, button3 }, new[] { -1, 170 }));
             Rows.Add((Cap("Display name"), new Control[] { Display, SetDisplayName }, new[] { -1, 170 }));
             Rows.Add((Cap("Other player"), new Control[] { Target, AddFriend, Block }, new[] { -1, 170, 170 }));
-            Rows.Add((Cap("Who can follow · PIN lock"), new Control[] { WhoFollow, Pin, button7 }, new[] { -1, 200, 170 }));
+            Rows.Add((Cap("Who can follow · PIN lock"), new Control[] { WhoFollowButton, Pin, button7 }, new[] { -1, 200, 170 }));
             Rows.Add((Cap("Sessions"), new Control[] { button2 }, new[] { 260 }));
 
             Resize += (s, e) => LayoutModern();
@@ -87,7 +107,7 @@ namespace RBX_Alt_Manager
         {
             if (!ModernBuilt || ClientSize.Width < Modern.Px(300)) return;
 
-            int G = Modern.Gutter, W = Math.Min(ClientSize.Width - G * 2, Modern.Px(900)), H = ModernSkin.Row, Gap = ModernSkin.Gap;
+            int G = Modern.Gutter, W = Math.Max(Modern.Px(420), ClientSize.Width - G * 2 - Modern.PageReserveRight), H = ModernSkin.Row, Gap = ModernSkin.Gap;
             int Y = G;
 
             ForLabel.SetBounds(G, Y, W, Modern.Px(20));

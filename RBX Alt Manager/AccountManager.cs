@@ -217,6 +217,7 @@ namespace RBX_Alt_Manager
             AccountsView.GroupWithItemCountSingularFormat = "{0}   ·   {1} account";
 
             AccountsView.AfterCreatingGroups += (s, e) => { UpdateGroupSidebar(); RefreshGrid(); };
+            AccountsView.ItemsChanged += (s, e) => { if (IsHandleCreated) BeginInvoke((MethodInvoker)(() => { UpdateGroupSidebar(); RefreshGrid(); })); };
 
             ApplyAccountFilter();
 
@@ -376,6 +377,7 @@ namespace RBX_Alt_Manager
             {
                 AccountsView.BuildList();
                 if (AccountsView.ShowGroups) AccountsView.BuildGroups();
+                else { UpdateGroupSidebar(); RefreshGrid(); } // the sidebar and the cards are built here when the list has no OLV groups
 
                 if (obj != null)
                 {
@@ -531,7 +533,7 @@ namespace RBX_Alt_Manager
         {
             if (e.KeyChar == (char)Keys.Return)
             {
-                UnlockButton.PerformClick();
+                TryUnlock();
 
                 e.Handled = true;
             }
@@ -588,7 +590,11 @@ namespace RBX_Alt_Manager
             }
             catch (Exception exception)
             {
-                ModernDialog.Show($"Incorrect Password!\n\n{exception.Message}", "Roblox Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                string Reason = PasswordTextBox.Text.Length < 4 ? "The PIN has at least 4 characters." : "Wrong PIN – please try again.";
+                Program.Logger.Warn($"[Unlock] {exception.Message}");
+
+                if (!PinFailed(Reason))
+                    ModernDialog.Show($"{Reason}\n\n{exception.Message}", "Unlock", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
             finally { PasswordTextBox.Text = string.Empty; PasswordTextBox.Focus(); }
         }
@@ -1303,8 +1309,7 @@ namespace RBX_Alt_Manager
 
         private void AccountManager_Shown(object sender, EventArgs e)
         {
-            if (!UpdateMultiRoblox() && !General.Get<bool>("HideRbxAlert"))
-                ModernDialog.Show("WARNING: Roblox is currently running, multi roblox will not work until you restart the account manager with roblox closed.", "Roblox Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            EnsureMultiRoblox(); // no warning any more: Roblox gets closed so multi Roblox works right away
 
             int Major = Environment.OSVersion.Version.Major, Minor = Environment.OSVersion.Version.Minor;
 
@@ -1406,19 +1411,65 @@ namespace RBX_Alt_Manager
                 StartNexusQuietly(); // starts the account control server without opening its page
         }
 
+        /// <summary>Multi Roblox needs Roblox closed when the manager takes Roblox's lock: close it (setting "CloseRobloxForMulti", on by default) and take the lock.</summary>
+        private async void EnsureMultiRoblox()
+        {
+            try
+            {
+                if (!General.Get<bool>("EnableMultiRbx") || UpdateMultiRoblox()) return;
+
+                bool CloseIt = !General.Exists("CloseRobloxForMulti") || General.Get<bool>("CloseRobloxForMulti");
+
+                if (CloseIt)
+                {
+                    foreach (var P in Process.GetProcessesByName("RobloxPlayerBeta"))
+                        try { P.Kill(); Program.Logger.Info($"[MultiRoblox] closed Roblox (pid {P.Id}) so multi Roblox can start"); } catch { }
+                }
+
+                // wait until Roblox is gone (or, if it isn't closed automatically, until the user closes it)
+                for (int i = 0; i < (CloseIt ? 40 : 600); i++)
+                {
+                    await Task.Delay(CloseIt ? 250 : 2000);
+                    if (UpdateMultiRoblox()) return;
+                }
+
+                Program.Logger.Warn("[MultiRoblox] could not take Roblox's lock");
+            }
+            catch (Exception x) { Program.Logger.Warn($"[MultiRoblox] {x.Message}"); }
+        }
+
         public bool UpdateMultiRoblox()
         {
             bool Enabled = General.Get<bool>("EnableMultiRbx");
 
             if (Enabled && rbxMultiMutex == null)
+            {
+                Mutex M = null;
+
                 try
                 {
-                    rbxMultiMutex = new Mutex(true, "ROBLOX_singletonMutex");
+                    M = new Mutex(true, "ROBLOX_singletonMutex", out bool CreatedNew);
 
-                    if (!rbxMultiMutex.WaitOne(TimeSpan.Zero, true))
+                    bool Owned = CreatedNew;
+
+                    if (!Owned)
+                        try { Owned = M.WaitOne(TimeSpan.Zero, true); }
+                        catch (AbandonedMutexException) { Owned = true; } // Roblox was closed: the mutex is ours now
+
+                    if (!Owned)
+                    {
+                        M.Dispose(); // not ours: try again later instead of keeping a useless handle
                         return false;
+                    }
+
+                    rbxMultiMutex = M;
                 }
-                catch { return false; }
+                catch
+                {
+                    M?.Dispose();
+                    return false;
+                }
+            }
             else if (!Enabled && rbxMultiMutex != null)
             {
                 rbxMultiMutex.Close();
@@ -2085,7 +2136,7 @@ namespace RBX_Alt_Manager
                 AccountsList = AccountsList.OrderByDescending(x => x.Username.All(char.IsDigit)).ThenByDescending(x => x.Username.Any(char.IsLetter)).ThenBy(x => x.Username).ToList();
 
                 AccountsView.SetObjects(AccountsList);
-                AccountsView.BuildGroups();
+                RefreshView();
             }
         }
 
