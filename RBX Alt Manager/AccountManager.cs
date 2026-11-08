@@ -520,6 +520,8 @@ namespace RBX_Alt_Manager
                     else
                         File.WriteAllBytes(SaveFilePath, ProtectedData.Protect(Encoding.UTF8.GetBytes(SaveData), Entropy, DataProtectionScope.LocalMachine));
                 }
+
+                Backups.AfterSave(); // a copy outside the app folder too, at most every 30 min
             }
         }
 
@@ -1852,6 +1854,8 @@ namespace RBX_Alt_Manager
             }
 
             AltManagerWS?.Stop();
+
+            if (!SavingBlocked) Backups.MakeBackup("close");
 
             if (PlaceID == null || string.IsNullOrEmpty(PlaceID.Text)) return;
 

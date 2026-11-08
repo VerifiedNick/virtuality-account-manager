@@ -208,7 +208,8 @@ namespace RBX_Alt_Manager.Forms
             void UpdateBackups()
             {
                 var All = Backups.List();
-                BackupDesc.Text = All.Count == 0 ? "A copy of your accounts is saved at every start (the newest 10 are kept). No copy yet." : $"A copy of your accounts is saved at every start, the newest {Backups.Keep} are kept. Newest: {All[0].LastWriteTime:dd.MM.yyyy HH:mm}.";
+                BackupDesc.Text = "Copies of your accounts (encrypted, same PIN) are made at every start, on close and every 30 min while you work – also outside this folder (AppData\\Local\\Virtuality Manager), so they survive even if this folder gets deleted. "
+                    + (All.Count == 0 ? "No copy yet." : $"Newest: {All[0].LastWriteTime:dd.MM.yyyy HH:mm}.");
                 BackupDesc.Invalidate();
 
                 RestoreMenu.Items.Clear();
@@ -225,6 +226,12 @@ namespace RBX_Alt_Manager.Forms
             {
                 Directory.CreateDirectory(Backups.Folder);
                 System.Diagnostics.Process.Start("explorer.exe", Backups.Folder);
+            });
+
+            Button(S, "Safe copies", "The copies outside the app folder. A new Virtuality Manager finds them by itself and offers to put them back.", "Open folder", ModernButtonStyle.Secondary, () =>
+            {
+                Directory.CreateDirectory(Backups.SafeFolder);
+                System.Diagnostics.Process.Start("explorer.exe", Backups.SafeFolder);
             });
 
             (RestoreButton, _) = Button(S, "Restore a backup", "Puts an older copy back. The current state is saved first, then the manager restarts.", "Choose…", ModernButtonStyle.Secondary, () => { });

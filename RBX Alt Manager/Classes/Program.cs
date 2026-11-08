@@ -66,6 +66,7 @@ namespace RBX_Alt_Manager
                 if (File.Exists(Path.Combine(Exe, "AccountData.json")) || File.Exists(Path.Combine(Exe, "RAMSettings.ini")))
                 {
                     Environment.CurrentDirectory = Exe;
+                    RBX_Alt_Manager.Classes.Backups.OfferRecovery();
                     RBX_Alt_Manager.Classes.Backups.MakeStartBackup();
                     return;
                 }
@@ -93,7 +94,8 @@ namespace RBX_Alt_Manager
                 }
 
                 Environment.CurrentDirectory = Data;
-                RBX_Alt_Manager.Classes.Backups.MakeStartBackup();
+                RBX_Alt_Manager.Classes.Backups.OfferRecovery();
+                    RBX_Alt_Manager.Classes.Backups.MakeStartBackup();
             }
             catch (Exception x)
             {
