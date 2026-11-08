@@ -164,7 +164,7 @@ namespace RBX_Alt_Manager.Forms
             AccountManager.IniSettings.Save("RAMSettings.ini");
 
             if (!AccountManager.Instance.UpdateMultiRoblox())
-                MessageBox.Show("Roblox is currently running, multi roblox will not work if roblox is open.", "Roblox Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                ModernDialog.Show("Roblox is currently running, multi roblox will not work if roblox is open.", "Roblox Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
 
         private void AutoCookieRefreshCB_CheckedChanged(object sender, EventArgs e)
@@ -211,7 +211,7 @@ namespace RBX_Alt_Manager.Forms
             AccountManager.Developer.Set("EnableWebServer", EnableWSCB.Checked ? "true" : "false");
             AccountManager.IniSettings.Save("RAMSettings.ini");
 
-            MessageBox.Show("Roblox Account Manager must be restarted to enable this setting", "Roblox Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            ModernDialog.Show("Roblox Account Manager must be restarted to enable this setting", "Roblox Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         private void ERRPCB_CheckedChanged(object sender, EventArgs e)
@@ -261,7 +261,7 @@ namespace RBX_Alt_Manager.Forms
             AccountManager.WebServer.Set("AllowExternalConnections", AllowExternalConnectionsCB.Checked ? "true" : "false");
             AccountManager.IniSettings.Save("RAMSettings.ini");
 
-            MessageBox.Show("Roblox Account Manager must be restarted to enable this setting\n\nThis setting requires admin privileges", "Roblox Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            ModernDialog.Show("Roblox Account Manager must be restarted to enable this setting\n\nThis setting requires admin privileges", "Roblox Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         private void PortNumber_ValueChanged(object sender, EventArgs e)
@@ -342,7 +342,7 @@ namespace RBX_Alt_Manager.Forms
                         AccountManager.General.Set("CustomClientSettings", FileName);
                     }
                     else
-                        MessageBox.Show("Invalid file selected, make sure it contains valid JSON", "Settings", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        ModernDialog.Show("Invalid file selected, make sure it contains valid JSON", "Settings", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
                 else
                     Remove();

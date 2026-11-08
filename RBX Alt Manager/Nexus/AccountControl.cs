@@ -26,6 +26,9 @@ namespace RBX_Alt_Manager.Forms
 {
     public partial class AccountControl : Form
     {
+        /// <summary>The tabs, for the page navigation of the main window.</summary>
+        public NBTabControl PageTabs => ACTabs;
+
         private static readonly string ACFile = Path.Combine(Environment.CurrentDirectory, "AccountControlData.json");
         private static readonly object SaveLock = new object();
 
@@ -306,7 +309,7 @@ namespace RBX_Alt_Manager.Forms
             try { Listener.Wait(50); }
             catch (InvalidOperationException x)
             {
-                MessageBox.Show($"{x.Message} {x.StackTrace}", "Account Control", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ModernDialog.Show($"{x.Message} {x.StackTrace}", "Account Control", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 Hide();
             }
 
@@ -429,7 +432,7 @@ namespace RBX_Alt_Manager.Forms
         {
             if (AccountsView.SelectedObjects.Count == 0) return;
 
-            if (AccountsView.SelectedObjects.Count == 1 || (AccountsView.SelectedObjects.Count > 1 && MessageBox.Show($"Are you sure you want to apply these edits to {AccountsView.SelectedObjects.Count} accounts?", "Warning", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes))
+            if (AccountsView.SelectedObjects.Count == 1 || (AccountsView.SelectedObjects.Count > 1 && ModernDialog.Show($"Are you sure you want to apply these edits to {AccountsView.SelectedObjects.Count} accounts?", "Warning", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes))
             {
                 foreach (ControlledAccount account in AccountsView.SelectedObjects)
                     account.AutoExecute = AutoExecuteScriptBox.Text;
@@ -521,7 +524,7 @@ namespace RBX_Alt_Manager.Forms
 
         private void removeToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            if (MessageBox.Show("Are you sure?", "Account Control", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+            if (ModernDialog.Show("Are you sure?", "Account Control", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
             {
                 foreach (ControlledAccount acc in AccountsView.SelectedObjects)
                     Accounts.Remove(acc);
@@ -700,6 +703,7 @@ namespace RBX_Alt_Manager.Forms
             }
 
             ApplyTheme(Controls);
+            RBX_Alt_Manager.Classes.ModernSkin.Apply(this); // Virtuality look on top of the old theme
         }
 
         public void ApplyTheme(Control.ControlCollection _Controls)

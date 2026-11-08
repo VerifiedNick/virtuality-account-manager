@@ -63,6 +63,7 @@ namespace RBX_Alt_Manager
                     control.ForeColor = ThemeEditor.ButtonsForeground;
                 }
             }
+            RBX_Alt_Manager.Classes.ModernSkin.Apply(this); // Virtuality look on top of the old theme
         }
 
         private void AccountFields_FormClosing(object sender, FormClosingEventArgs e)
@@ -106,7 +107,7 @@ namespace RBX_Alt_Manager
         {
             e.Cancel = true;
 
-            MessageBox.Show("To edit a field, press enter on the value (right) side", "Account Fields", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            ModernDialog.Show("To edit a field, press enter on the value (right) side", "Account Fields", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         private void Add_Click(object sender, EventArgs e)

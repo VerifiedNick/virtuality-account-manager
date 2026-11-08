@@ -79,6 +79,7 @@ namespace RBX_Alt_Manager.Forms
             ForeColor = ThemeEditor.FormsForeground;
 
             ApplyTheme(Controls);
+            RBX_Alt_Manager.Classes.ModernSkin.Apply(this); // Virtuality look on top of the old theme
         }
 
         public void ApplyTheme(Control.ControlCollection _Controls)

@@ -4,9 +4,10 @@ using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
+
 namespace RBX_Alt_Manager.Classes
 {
-    internal class NBTabControl : TabControl
+    public class NBTabControl : TabControl
     {
         // https://dotnetrix.co.uk/tabcontrol.htm
 
@@ -115,76 +116,73 @@ namespace RBX_Alt_Manager.Classes
             Invalidate();
         }
 
-        protected override void OnPaint(PaintEventArgs e)
+        private int HoverIndex = -1;
+
+        protected override void OnMouseMove(MouseEventArgs e)
         {
-            base.OnPaint(e);
+            base.OnMouseMove(e);
 
-            e.Graphics.Clear(BackColor);
-            Rectangle r = ClientRectangle;
+            int Index = -1;
+            for (int i = 0; i < TabCount; i++)
+                if (GetTabRect(i).Contains(e.Location)) { Index = i; break; }
 
-            if (TabCount <= 0) return;
-
-            StringFormat sf = new StringFormat();
-            sf.Alignment = StringAlignment.Center;
-            sf.LineAlignment = StringAlignment.Center;
-            r = SelectedTab.Bounds;
-                // new Rectangle(SelectedTab.Bounds.X, SelectedTab.Bounds.Y, (int)(SelectedTab.Bounds.Width * Program.Scale), (int)(SelectedTab.Bounds.Height * Program.Scale));
-
-            r.Inflate(3, 3);
-
-            TabPage tp = TabPages[SelectedIndex];
-            SolidBrush PaintBrush = new SolidBrush(tp.BackColor);
-
-            e.Graphics.FillRectangle(PaintBrush, r);
-
-            Color br = PaintBrush.Color.GetBrightness() < 0.4 ? ControlPaint.Light(PaintBrush.Color, 0.7f) : ControlPaint.Dark(PaintBrush.Color, 0.7f);
-            ControlPaint.DrawBorder(e.Graphics, r,
-                br, 1, ButtonBorderStyle.Solid,
-                br, 1, ButtonBorderStyle.Solid,
-                br, 1, ButtonBorderStyle.Solid,
-                br, 1, ButtonBorderStyle.Solid);
-
-            for (int index = 0; index <= TabCount - 1; index++)
-                PaintTabButton(index, e, r, PaintBrush, sf);
-
-            PaintBrush.Dispose();
+            if (Index != HoverIndex) { HoverIndex = Index; Invalidate(); }
         }
 
-        private void PaintTabButton(int index, PaintEventArgs e, Rectangle r, SolidBrush PaintBrush, StringFormat sf)
+        protected override void OnMouseLeave(EventArgs e)
         {
-            TabPage tp = TabPages[index];
-            r = GetTabRect(index);
-            // r = new Rectangle((int)(r.X*Program.Scale), r.Y, (int)(r.Width * Program.Scale), (int)(r.Height * 1f));
-            bool isSelected = index == SelectedIndex;
-            ButtonBorderStyle bs = index == SelectedIndex ? ButtonBorderStyle.Solid : ButtonBorderStyle.Solid;
+            base.OnMouseLeave(e);
+            HoverIndex = -1;
+            Invalidate();
+        }
 
-            PaintBrush.Color = tp.BackColor;
-            e.Graphics.FillRectangle(PaintBrush, r);
+        /// <summary>When the tabs are chosen from outside (page navigation of the main window) the strip is hidden.</summary>
+        private bool HideStrip_;
+        public bool HideStrip { get => HideStrip_; set { HideStrip_ = value; PerformLayout(); Invalidate(); } }
 
-            Color br = PaintBrush.Color.GetBrightness() < 0.4 ? ControlPaint.Light(PaintBrush.Color, isSelected ? 1f : 0.4f) : ControlPaint.Dark(PaintBrush.Color, isSelected ? 1f : 0.4f);
-            ControlPaint.DrawBorder(e.Graphics, r,
-                br, 1, bs,
-                br, 1, bs,
-                br, 1, bs,
-                br, 1, isSelected ? ButtonBorderStyle.None : bs);
-            PaintBrush.Color = tp.ForeColor;
+        /// <summary>Height of the tab strip (tabs + line under them).</summary>
+        private int StripHeight => HideStrip_ ? 0 : IsHandleCreated && TabCount > 0 ? GetTabRect(0).Bottom + Modern.Px(1) : 0;
 
-            if (Alignment == TabAlignment.Left || Alignment == TabAlignment.Right)
+        /// <summary>Pages fill the whole area below the tabs (no 3D frame, no inset).</summary>
+        public override Rectangle DisplayRectangle
+        {
+            get
             {
-                float RotateAngle = 90;
-                if (Alignment == TabAlignment.Left) RotateAngle = 270;
-                PointF cp = new PointF(r.Left + (r.Width >> 1), r.Top + (r.Height >> 1));
-                e.Graphics.TranslateTransform(cp.X, cp.Y);
-                e.Graphics.RotateTransform(RotateAngle);
-                r = new Rectangle(-(r.Height >> 1), -(r.Width >> 1), r.Height, r.Width);
+                if (HideStrip_) return new Rectangle(0, 0, Width, Height);
+                if (!IsHandleCreated || TabCount == 0 || Alignment != TabAlignment.Top) return base.DisplayRectangle;
+
+                int Top = StripHeight;
+                return new Rectangle(0, Top, Width, Math.Max(0, Height - Top));
             }
+        }
 
-            if (tp.Enabled)
-                e.Graphics.DrawString(tp.Text, Font, PaintBrush, (RectangleF)r, sf);
-            else
-                ControlPaint.DrawStringDisabled(e.Graphics, tp.Text, Font, tp.BackColor, (RectangleF)r, sf);
+        // Virtuality look: flat tab strip, white text on the selected tab with a purple bar under it
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            Graphics G = e.Graphics;
+            G.Clear(Modern.Bg);
 
-            e.Graphics.ResetTransform();
+            if (TabCount <= 0 || HideStrip_) return;
+
+            Modern.Prepare(G);
+
+            int Bottom = StripHeight;
+            using (var P = new Pen(Modern.Line)) G.DrawLine(P, 0, Bottom - 1, Width, Bottom - 1);
+
+            for (int i = 0; i < TabCount; i++)
+            {
+                Rectangle R = GetTabRect(i);
+                bool Sel = i == SelectedIndex, Hot = i == HoverIndex;
+
+                if (Hot && !Sel)
+                    using (var B = new SolidBrush(Modern.Hover)) G.FillRectangle(B, R.X, R.Y, R.Width, Bottom - 1 - R.Y);
+
+                Color C = !TabPages[i].Enabled ? Modern.Faint : (Sel ? Modern.Text : (Hot ? Modern.Text2 : Modern.Sub));
+                Modern.Text_(G, TabPages[i].Text, Modern.Font(9.25f, FontStyle.Regular, Sel), new Rectangle(R.X, R.Y, R.Width, Bottom - 1 - R.Y), C, TextFormatFlags.HorizontalCenter | TextFormatFlags.NoPrefix);
+
+                if (Sel)
+                    using (var B = new SolidBrush(Modern.Accent)) G.FillRectangle(B, R.X, Bottom - Modern.Px(2) - 1, R.Width, Modern.Px(2));
+            }
         }
 
         [Description("Occurs as a tab is being changed.")]

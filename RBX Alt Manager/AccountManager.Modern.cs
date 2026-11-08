@@ -83,6 +83,7 @@ namespace RBX_Alt_Manager
             BuildSideBar();
             BuildCenter();
             BuildCard();
+            BuildPages();
 
             Controls.Add(Shell);
             Controls.Add(LegacyHolder);
@@ -167,15 +168,15 @@ namespace RBX_Alt_Manager
 
             ServerListIcon = new ModernButton() { Icon = IconKind.Servers };
             ServerListIcon.Click += (s, e) => ServerList_Click(ServerListIcon, EventArgs.Empty);
-            SaveTooltip.SetToolTip(ServerListIcon, "Utilities: server list, games list, favorites");
+            SaveTooltip.SetToolTip(ServerListIcon, "Servers, games, favorites, outfits, watcher");
 
             RecentGamesIcon = new ModernButton() { Icon = IconKind.Clock };
-            RecentGamesIcon.Click += (s, e) => RGForm.ShowForm();
+            RecentGamesIcon.Click += (s, e) => OpenPage("recent");
             SaveTooltip.SetToolTip(RecentGamesIcon, "Recent games");
 
-            AccountControlIcon = new ModernButton() { Icon = IconKind.Grid };
-            AccountControlIcon.Click += (s, e) => LaunchNexus_Click(AccountControlIcon, EventArgs.Empty);
-            SaveTooltip.SetToolTip(AccountControlIcon, "Account Control (Nexus)");
+            AccountControlIcon = new ModernButton() { Icon = IconKind.Tools };
+            AccountControlIcon.Click += (s, e) => OpenPage("tools");
+            SaveTooltip.SetToolTip(AccountControlIcon, "Account tools: password, e-mail, display name, friends, privacy");
 
             SettingsIcon = new ModernButton() { Icon = IconKind.Gear };
             SettingsIcon.Click += (s, e) => ConfigButton_Click(SettingsIcon, EventArgs.Empty);
@@ -286,7 +287,7 @@ namespace RBX_Alt_Manager
 
             ViewToggleButton = new ModernButton() { Text = CardView ? "List view" : "Card view" };
             ViewToggleButton.Click += (s, e) => SetCardView(!CardView);
-            SaveTooltip.SetToolTip(ViewToggleButton, "Switch between account cards and the classic list (the list supports drag & drop into groups)");
+            SaveTooltip.SetToolTip(ViewToggleButton, "Switch between account cards and the classic list (the list shows more accounts at once and can be sorted by clicking a column)");
 
             ListFrame = new LinePanel() { BackColor = Modern.Bg, FillBorderColor = Modern.Line, Padding = new Padding(1) };
 
@@ -311,7 +312,7 @@ namespace RBX_Alt_Manager
             Modern.DarkScrollbars(GroupsSidebar);
             Grid.BringToFront(); // the list stays behind it (still used for selection, menus and the list view)
 
-            AvatarCache.Changed += (s, e) => { if (IsHandleCreated && !IsDisposed) BeginInvoke((MethodInvoker)(() => Grid?.Invalidate())); };
+            AvatarCache.Changed += (s, e) => { if (IsHandleCreated && !IsDisposed) BeginInvoke((MethodInvoker)(() => { Grid?.Invalidate(); AccountCard?.Invalidate(true); })); };
 
             CardPresenceTimer.Tick += async (s, e) => await UpdateCardPresence(true);
             if (CardView) CardPresenceTimer.Start();
@@ -345,6 +346,9 @@ namespace RBX_Alt_Manager
             AccountsView.HeaderUsesThemes = false;
             AccountsView.BackColor = Modern.Bg;
             AccountsView.ForeColor = Modern.Text;
+            AccountsView.ShowGroups = false; // groups are in the sidebar; the GROUP column shows it per row
+            AccountsView.GridLines = false;
+            AccountsView.UseAlternatingBackColors = false;
 
             StatusColumn = new OLVColumn("STATUS", string.Empty) { IsEditable = false, Sortable = false, Width = 120, AspectGetter = o => o is Account A ? AccountRowRenderer.StateText(A, AccountRowRenderer.StateOf(A)) : string.Empty };
 
@@ -368,7 +372,11 @@ namespace RBX_Alt_Manager
             Description.Renderer = new AccountRowRenderer(AccountColumnKind.Note);
             StatusColumn.Renderer = new AccountRowRenderer(AccountColumnKind.Status);
             LastUsedColumn.Renderer = new AccountRowRenderer(AccountColumnKind.LastUsed);
-            Group.Renderer = new AccountRowRenderer(AccountColumnKind.Empty);
+            Group.Text = "GROUP";
+            Group.Width = 170;
+            Group.IsEditable = false;
+            Group.Renderer = new AccountRowRenderer(AccountColumnKind.Group);
+            AccountRowRenderer.GroupTitle = GroupTitleOf;
 
             AccountsView.SelectionChanged += (s, e) => { UpdateAccountCard(); Grid?.Invalidate(); };
         }
@@ -380,6 +388,7 @@ namespace RBX_Alt_Manager
             AccountCard.CopyUser.Click += (s, e) => CopyToClipboard(string.Join(Environment.NewLine, AccountCard.Selection.Select(a => a.Username)), AccountCard.CopyUser);
             AccountCard.CopyPassword.Click += (s, e) => CopyToClipboard(string.Join(Environment.NewLine, AccountCard.Selection.Where(a => !string.IsNullOrEmpty(a.Password)).Select(a => a.Password)), AccountCard.CopyPassword);
             AccountCard.Login.Click += (s, e) => LoginSelectedAccount();
+            AccountCard.LoginRequested = A => LoginAccount(A);
             AccountCard.AddFriend.Click += (s, e) => AddFriendToMain();
             AccountCard.OpenBrowser.Click += (s, e) => OpenBrowser_Click(AccountCard.OpenBrowser, EventArgs.Empty);
             AccountCard.OpenBrowser.Menu = OpenBrowserStrip;
@@ -392,10 +401,10 @@ namespace RBX_Alt_Manager
             SaveTooltip.SetToolTip(AccountCard.OpenBrowser, "Opens a browser logged in as the account (arrow: URL / URL + JS / Join group)");
 
             MoreToolsMenu = new ContextMenuStrip();
-            MoreToolsMenu.Items.Add("Account Utilities…", null, (s, e) => BrowserButton_Click(null, EventArgs.Empty));
-            MoreToolsMenu.Items.Add("Account Control (Nexus)", null, (s, e) => LaunchNexus_Click(null, EventArgs.Empty));
-            MoreToolsMenu.Items.Add("Server list / Games / Favorites", null, (s, e) => ServerList_Click(null, EventArgs.Empty));
-            MoreToolsMenu.Items.Add("Recent games", null, (s, e) => RGForm.ShowForm());
+            MoreToolsMenu.Items.Add("Account tools", null, (s, e) => OpenPage("tools"));
+            MoreToolsMenu.Items.Add("Account control (Nexus)", null, (s, e) => LaunchNexus_Click(null, EventArgs.Empty));
+            MoreToolsMenu.Items.Add("Servers & games", null, (s, e) => ServerList_Click(null, EventArgs.Empty));
+            MoreToolsMenu.Items.Add("Recent games", null, (s, e) => OpenPage("recent"));
             MoreToolsMenu.Items.Add(new ToolStripSeparator());
             MoreToolsMenu.Items.Add("Save Place + Job ID to account", null, (s, e) => SaveToAccount_Click(null, EventArgs.Empty));
             MoreToolsMenu.Items.Add("Quick Log In…", null, (s, e) => quickLogInToolStripMenuItem_Click(null, EventArgs.Empty));
@@ -408,7 +417,6 @@ namespace RBX_Alt_Manager
             HideUsernamesMenuItem = new ToolStripMenuItem("Hide usernames") { CheckOnClick = true };
             HideUsernamesMenuItem.CheckedChanged += (s, e) => HideUsernamesCheckbox.Checked = HideUsernamesMenuItem.Checked;
             MoreToolsMenu.Items.Add(HideUsernamesMenuItem);
-            MoreToolsMenu.Items.Add("Edit theme (other windows)", null, (s, e) => EditTheme_Click(null, EventArgs.Empty));
             MoreToolsMenu.Items.Add("Settings", null, (s, e) => ConfigButton_Click(null, EventArgs.Empty));
             MoreToolsMenu.Items.Add("Launch arguments (dev)", null, (s, e) => ArgumentsB_Click(null, EventArgs.Empty)).Name = "LaunchArgumentsItem";
             MoreToolsMenu.Items.Add(new ToolStripSeparator());
@@ -623,7 +631,7 @@ namespace RBX_Alt_Manager
 
             var (Found, TargetId) = await Task.Run(() => (GetUserID(Target, out long Id, out _), Id));
 
-            if (!Found || TargetId <= 0) { MessageBox.Show($"The Roblox user \"{Target}\" was not found. Change the main account on the right (\"Change\").", "Join " + Target, MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+            if (!Found || TargetId <= 0) { ModernDialog.Show($"The Roblox user \"{Target}\" was not found. Change the main account on the right (\"Change\").", "Join " + Target, MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
 
             if (!(await Presence.GetPresenceSingular(TargetId) is UserPresence Status && Status.userPresenceType == UserPresenceType.InGame && Status.placeId is long PlaceId && PlaceId > 0) &&
                 !Utilities.YesNoPrompt("Join " + Target, $"{Target} is not in a game right now or has joins turned off", "Do you want to try to join anyway?"))
@@ -634,7 +642,7 @@ namespace RBX_Alt_Manager
             string Result = await A.JoinServer(TargetId, string.Empty, true);
 
             if (!Result.Contains("Success"))
-                MessageBox.Show(Result, "Join " + Target, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                ModernDialog.Show(Result, "Join " + Target, MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
 
         private void SelectAllVisible()
@@ -754,18 +762,22 @@ namespace RBX_Alt_Manager
             ClipboardSecret = null;
         }
 
-        private async void LoginSelectedAccount()
-        {
-            Account A = AccountCard.Single;
+        private void LoginSelectedAccount() => LoginAccount(AccountCard.Single ?? AccountCard.NextToLogin);
 
-            if (A == null) { MessageBox.Show("Select one account first.", "Login", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
+        private bool LoginRunning;
+
+        private async void LoginAccount(Account A)
+        {
+            if (A == null) { ModernDialog.Show("Select an account first.", "Login", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
+
+            if (LoginRunning) { ModernDialog.Show("A login window is already open. Finish that one first (or close it), then the next account.", "Login", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
 
             if (IsDownloadingChromium) { DownloadProgressBar_Click(null, EventArgs.Empty); return; }
 
             string Password = A.Password;
 
             if (string.IsNullOrEmpty(Password))
-                MessageBox.Show($"No password is saved for {A.Username}.\nThe username gets filled in, type the password yourself.", "Login", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ModernDialog.Show($"No password is saved for {A.Username}.\nThe username gets filled in, type the password yourself.", "Login", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
             if (CleanLogin.FindBrowser() != null)
             {
@@ -781,7 +793,7 @@ namespace RBX_Alt_Manager
                 catch (Exception x)
                 {
                     Program.Logger.Error($"[Login] {x}");
-                    MessageBox.Show($"The login window could not be opened.\n\n{x.Message}", "Login", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    ModernDialog.Show($"The login window could not be opened.\n\n{x.Message}", "Login", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 }
                 finally { AccountCard.RefreshState(); }
             }
@@ -795,7 +807,8 @@ namespace RBX_Alt_Manager
             string Browser = CleanLogin.FindBrowser();
             string Profile = CleanLogin.ProfileFor(UserId);
 
-            AccountCard.Login.Enabled = false;
+            LoginRunning = true;
+            AccountCard.LoginBusy = true;
             AddAccountButton.Enabled = false;
 
             try
@@ -807,7 +820,7 @@ namespace RBX_Alt_Manager
                     Account Added = await Task.Run(() => AddAccount(Cookie, Pw ?? string.Empty));
 
                     if (Added == null)
-                        MessageBox.Show("Roblox did not accept the login cookie. Please try again.", "Login", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        ModernDialog.Show("Roblox did not accept the login cookie. Please try again.", "Login", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     else
                     {
                         CleanLogin.AdoptProfile(Profile, Added.UserID);
@@ -826,11 +839,12 @@ namespace RBX_Alt_Manager
             catch (Exception x)
             {
                 Program.Logger.Error($"[Login] {x}");
-                MessageBox.Show($"The login window could not be opened.\n\n{x.Message}", "Login", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                ModernDialog.Show($"The login window could not be opened.\n\n{x.Message}", "Login", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
             finally
             {
-                AccountCard.RefreshState();
+                LoginRunning = false;
+                AccountCard.LoginBusy = false;
                 AddAccountButton.Enabled = true;
             }
         }
@@ -846,14 +860,14 @@ namespace RBX_Alt_Manager
             string Target = FriendTargetName;
             var Accounts = AccountCard.Selection.Where(a => !string.Equals(a.Username, Target, StringComparison.OrdinalIgnoreCase)).ToList();
 
-            if (Accounts.Count == 0) { MessageBox.Show($"Select the alt accounts that should add {Target}.", "Add main account", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
+            if (Accounts.Count == 0) { ModernDialog.Show($"Select the alt accounts that should add {Target}.", "Add main account", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
 
-            if (Accounts.Count > 1 && MessageBox.Show($"Send {Target} a friend request from {Accounts.Count} accounts?\n\nThere is a {FriendDelaySeconds} s pause between the accounts. Click the button again to stop.", "Add main account", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+            if (Accounts.Count > 1 && ModernDialog.Show($"Send {Target} a friend request from {Accounts.Count} accounts?\n\nThere is a {FriendDelaySeconds} s pause between the accounts. Click the button again to stop.", "Add main account", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
                 return;
 
             var (Found, TargetId) = await Task.Run(() => (GetUserID(Target, out long Id, out _), Id));
 
-            if (!Found || TargetId <= 0) { MessageBox.Show($"The Roblox user \"{Target}\" was not found. Check the main account with \"Change\".", "Add main account", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+            if (!Found || TargetId <= 0) { ModernDialog.Show($"The Roblox user \"{Target}\" was not found. Check the main account with \"Change\".", "Add main account", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
 
             FriendTokenSource = new CancellationTokenSource();
             var Token = FriendTokenSource.Token;
@@ -900,7 +914,7 @@ namespace RBX_Alt_Manager
             if (Done < Accounts.Count) Summary += $", {Accounts.Count - Done} not done";
             if (Problems.Count > 0) Summary += $"\n\nProblems ({Problems.Count}):\n" + string.Join("\n", Problems.Take(12)) + (Problems.Count > 12 ? $"\n… and {Problems.Count - 12} more" : string.Empty);
 
-            MessageBox.Show(Summary, "Add main account", MessageBoxButtons.OK, Problems.Count > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
+            ModernDialog.Show(Summary, "Add main account", MessageBoxButtons.OK, Problems.Count > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
         }
 
         private async void CheckForBans()
@@ -966,7 +980,7 @@ namespace RBX_Alt_Manager
                              (Banned + Temp > 0 ? "\n\nBanned accounts are marked red. Nothing was deleted or moved." : string.Empty) +
                              (NeedLogin > 0 ? "\nNot logged in accounts have a \"Re-login\" button on their card." : string.Empty);
 
-            MessageBox.Show(Summary, "Check for bans", MessageBoxButtons.OK, Banned + Temp > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
+            ModernDialog.Show(Summary, "Check for bans", MessageBoxButtons.OK, Banned + Temp > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
         }
 
         private async Task RunSessionChecks(List<Account> Accounts, ConcurrentDictionary<Account, AccountChecks.SessionInfo> Results, CancellationToken Token, Action<int, int> Progress = null)

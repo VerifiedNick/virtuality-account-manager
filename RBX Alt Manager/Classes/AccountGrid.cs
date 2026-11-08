@@ -26,6 +26,16 @@ namespace RBX_Alt_Manager.Classes
         private bool Sections;
         private Account SelectionAnchor;
 
+        // drag selection (rubber band): starts on empty space, or anywhere while Ctrl is held
+        private bool DragArmed, Dragging;
+        private Point DragStart;                  // content coordinates (unscrolled)
+        private Point DragNow;
+        private HashSet<Account> DragBase;
+        private Account PendingToggle;            // Ctrl + click without dragging toggles the card
+        private bool PendingClear;                // click on empty space without dragging clears the selection
+        private List<Account> LastDragSelection = new List<Account>();
+        private readonly Timer DragScroll = new Timer() { Interval = 30 };
+
         private Account HoverAccount;
         private int HoverButton; // 0 none, 1 join, 2 join main
 
@@ -50,6 +60,39 @@ namespace RBX_Alt_Manager.Classes
             AutoScroll = true;
             BackColor = Modern.Bg;
             Tag = "NoScaling";
+
+            DragScroll.Tick += (s, e) =>
+            {
+                if (!Dragging) { DragScroll.Stop(); return; }
+
+                Point P = PointToClient(Cursor.Position);
+                int Step = P.Y < 0 ? P.Y : (P.Y > ClientSize.Height ? P.Y - ClientSize.Height : 0);
+
+                if (Step == 0) return;
+
+                Step = Math.Sign(Step) * Math.Min(Modern.Px(40), Math.Abs(Step) / 2 + Modern.Px(4));
+                AutoScrollPosition = new Point(0, Math.Max(0, -AutoScrollPosition.Y + Step));
+                UpdateDrag(P);
+            };
+        }
+
+        private Rectangle DragRect => Rectangle.FromLTRB(Math.Min(DragStart.X, DragNow.X), Math.Min(DragStart.Y, DragNow.Y), Math.Max(DragStart.X, DragNow.X), Math.Max(DragStart.Y, DragNow.Y));
+
+        private void UpdateDrag(Point Client)
+        {
+            DragNow = new Point(Client.X - AutoScrollPosition.X, Client.Y - AutoScrollPosition.Y);
+
+            var Rect = DragRect;
+            var Hit = Entries.Where(E => E.Card.IntersectsWith(Rect)).Select(E => E.Account);
+            var Result = Items.Where(a => DragBase.Contains(a) || Hit.Contains(a)).ToList();
+
+            if (!Result.SequenceEqual(LastDragSelection))
+            {
+                LastDragSelection = Result;
+                SetSelection(Result);
+            }
+
+            Invalidate();
         }
 
         public void SetItems(IEnumerable<Account> Accounts, bool ShowSections)
@@ -183,6 +226,13 @@ namespace RBX_Alt_Manager.Classes
 
                 DrawCard(G, E.Account, R, Selected.Contains(E.Account), E.Account == HoverAccount);
             }
+
+            if (Dragging)
+            {
+                var DR = Shift(DragRect);
+                using (var DB = new SolidBrush(Color.FromArgb(40, Modern.Accent))) G.FillRectangle(DB, DR);
+                using (var DP = new Pen(Modern.AccentText)) G.DrawRectangle(DP, DR.X, DR.Y, Math.Max(0, DR.Width - 1), Math.Max(0, DR.Height - 1));
+            }
         }
 
         private void DrawCard(Graphics G, Account A, Rectangle R, bool Sel, bool Hover)
@@ -314,6 +364,23 @@ namespace RBX_Alt_Manager.Classes
         {
             base.OnMouseMove(e);
 
+            if (DragArmed && e.Button == MouseButtons.Left)
+            {
+                Point Content = new Point(e.X - AutoScrollPosition.X, e.Y - AutoScrollPosition.Y);
+
+                if (!Dragging && (Math.Abs(Content.X - DragStart.X) > Modern.Px(5) || Math.Abs(Content.Y - DragStart.Y) > Modern.Px(5)))
+                {
+                    Dragging = true;
+                    PendingToggle = null;
+                    PendingClear = false;
+                    LastDragSelection = null;
+                    Cursor = Cursors.Cross;
+                    DragScroll.Start();
+                }
+
+                if (Dragging) { UpdateDrag(e.Location); return; }
+            }
+
             var (A, B) = HitTest(e.Location);
 
             if (A != HoverAccount || B != HoverButton)
@@ -339,14 +406,25 @@ namespace RBX_Alt_Manager.Classes
             Focus();
 
             var (A, Button) = HitTest(e.Location);
+            var Selected = GetSelection();
+
+            DragArmed = Dragging = false;
+            PendingToggle = null;
+            PendingClear = false;
 
             if (A == null)
             {
-                if (e.Button == MouseButtons.Left && ModifierKeys == Keys.None) SetSelection(new List<Account>());
+                if (e.Button == MouseButtons.Left)
+                {
+                    // empty space: drag to select; a plain click clears the selection on release
+                    DragArmed = true;
+                    DragStart = DragNow = new Point(e.X - AutoScrollPosition.X, e.Y - AutoScrollPosition.Y);
+                    DragBase = ModifierKeys.HasFlag(Keys.Control) || ModifierKeys.HasFlag(Keys.Shift) ? Selected : new HashSet<Account>();
+                    PendingClear = ModifierKeys == Keys.None;
+                }
+
                 return;
             }
-
-            var Selected = GetSelection();
 
             if (e.Button == MouseButtons.Right)
             {
@@ -376,15 +454,50 @@ namespace RBX_Alt_Manager.Classes
             }
             else if (ModifierKeys.HasFlag(Keys.Control))
             {
-                if (Selected.Contains(A)) Selected.Remove(A); else Selected.Add(A);
-
-                SetSelection(Items.Where(Selected.Contains).ToList());
+                // Ctrl: drag over cards to add them; a click without dragging toggles this card (on release)
+                DragArmed = true;
+                DragStart = DragNow = new Point(e.X - AutoScrollPosition.X, e.Y - AutoScrollPosition.Y);
+                DragBase = Selected;
+                PendingToggle = A;
                 SelectionAnchor = A;
             }
             else
             {
                 SetSelection(new List<Account> { A });
                 SelectionAnchor = A;
+            }
+        }
+
+        protected override void OnMouseUp(MouseEventArgs e)
+        {
+            base.OnMouseUp(e);
+
+            if (e.Button != MouseButtons.Left) return;
+
+            DragScroll.Stop();
+
+            if (!Dragging)
+            {
+                if (PendingToggle != null)
+                {
+                    var Selected = GetSelection();
+                    if (Selected.Contains(PendingToggle)) Selected.Remove(PendingToggle); else Selected.Add(PendingToggle);
+                    SetSelection(Items.Where(Selected.Contains).ToList());
+                }
+                else if (PendingClear)
+                    SetSelection(new List<Account>());
+            }
+
+            bool WasDragging = Dragging;
+
+            DragArmed = Dragging = false;
+            PendingToggle = null;
+            PendingClear = false;
+
+            if (WasDragging)
+            {
+                Cursor = Cursors.Default;
+                Invalidate();
             }
         }
 

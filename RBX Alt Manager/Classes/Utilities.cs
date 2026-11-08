@@ -219,27 +219,15 @@ public static Color Lerp(this Color s, Color t, float k)
         if (CanSave && AccountManager.Prompts.Exists(Hash))
             return AccountManager.Prompts.Get<bool>(Hash);
 
-        TaskDialog Dialog = TaskDialog.IsPlatformSupported == true ? new TaskDialog()
-        {
-            Caption = Caption,
-            InstructionText = Instruction,
-            Text = Text,
-            FooterCheckBoxText = CanSave ? "Don't show this again and remember my choice" : null,
-            StandardButtons = TaskDialogStandardButtons.Yes | TaskDialogStandardButtons.No,
-        } : null;
+        bool Result = RBX_Alt_Manager.ModernDialog.YesNo(Caption, Instruction, Text, CanSave, out bool Remember);
 
-        var DR = Dialog?.Show();
-
-        if (CanSave && Dialog?.FooterCheckBoxChecked == true)
+        if (CanSave && Remember && (SaveIfNo || Result))
         {
-            if (SaveIfNo || (!SaveIfNo && DR == TaskDialogResult.Yes))
-            {
-                AccountManager.Prompts.Set(Hash, DR == TaskDialogResult.Yes ? "true" : "false");
-                AccountManager.IniSettings.Save("RAMSettings.ini");
-            }
+            AccountManager.Prompts.Set(Hash, Result ? "true" : "false");
+            AccountManager.IniSettings.Save("RAMSettings.ini");
         }
 
-        return DR != null ? DR == TaskDialogResult.Yes : MessageBox.Show($"{Instruction}\n{Text}", Caption, MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes;
+        return Result;
     }
 
     public static void ApplyTheme(this Control.ControlCollection Controls)

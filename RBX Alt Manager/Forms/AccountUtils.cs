@@ -64,6 +64,7 @@ namespace RBX_Alt_Manager
                     control.ForeColor = ThemeEditor.ButtonsForeground;
                 }
             }
+            RBX_Alt_Manager.Classes.ModernSkin.Apply(this); // Virtuality look on top of the old theme
         }
 
         private void AccountUtils_FormClosing(object sender, FormClosingEventArgs e)
@@ -83,7 +84,7 @@ namespace RBX_Alt_Manager
         {
             if (AccountManager.SelectedAccount == null) return;
 
-            DialogResult result = MessageBox.Show($"Are you sure you want sign out of all other sessions?", "Account Utilities", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+            DialogResult result = ModernDialog.Show($"Are you sure you want sign out of all other sessions?", "Account Utilities", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
 
             if (result == DialogResult.Yes)
                 AccountManager.SelectedAccount.LogOutOfOtherSessions();
@@ -139,11 +140,11 @@ namespace RBX_Alt_Manager
             try
             {
                 if (AccountManager.SelectedAccount.TogglePlayerBlocked(Username.Text, ref WasUnblocked))
-                    MessageBox.Show($"{(WasUnblocked ? "Unb" : "B")}locked {Username.Text}");
+                    ModernDialog.Show($"{(WasUnblocked ? "Unb" : "B")}locked {Username.Text}");
                 else
-                    MessageBox.Show($"Failed to {(WasUnblocked ? "Unb" : "B")}lock {Username.Text}");
+                    ModernDialog.Show($"Failed to {(WasUnblocked ? "Unb" : "B")}lock {Username.Text}");
             }
-            catch (Exception x) { MessageBox.Show($"Failed to {(WasUnblocked ? "Unb" : "B")}lock {Username.Text}\n\n{x.Message}"); }
+            catch (Exception x) { ModernDialog.Show($"Failed to {(WasUnblocked ? "Unb" : "B")}lock {Username.Text}\n\n{x.Message}"); }
         }
 
         private void SetDisplayName_Click(object sender, EventArgs e)
@@ -153,9 +154,9 @@ namespace RBX_Alt_Manager
             try
             {
                 AccountManager.SelectedAccount.SetDisplayName(DisplayName.Text);
-                MessageBox.Show($"Successfully set {AccountManager.SelectedAccount.Username}'s Display Name to {DisplayName.Text}", "Account Utilities", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ModernDialog.Show($"Successfully set {AccountManager.SelectedAccount.Username}'s Display Name to {DisplayName.Text}", "Account Utilities", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
-            catch (Exception x) { MessageBox.Show(x.Message, "Account Utilities", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+            catch (Exception x) { ModernDialog.Show(x.Message, "Account Utilities", MessageBoxButtons.OK, MessageBoxIcon.Error); }
         }
 
         private void AddFriend_Click(object sender, EventArgs e)

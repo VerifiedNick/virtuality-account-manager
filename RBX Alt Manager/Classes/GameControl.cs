@@ -69,7 +69,7 @@ namespace RBX_Alt_Manager.Classes
         {
             if (AccountManager.LastValidAccount == null)
             {
-                MessageBox.Show("Select a valid account then try again", "Roblox Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                ModernDialog.Show("Select a valid account then try again", "Roblox Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 

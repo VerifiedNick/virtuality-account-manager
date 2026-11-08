@@ -114,12 +114,12 @@ namespace RBX_Alt_Manager.Classes
                 if (Response.IsSuccessful && Response.Content.TryParseJson(out JObject Rsp))
                 {
                     if (Rsp["purchased"].Value<bool>())
-                        MessageBox.Show($"Successfully purchased {AssetName} for {PriceLabel.Text}", "Purchase Asset", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        ModernDialog.Show($"Successfully purchased {AssetName} for {PriceLabel.Text}", "Purchase Asset", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     else
-                        MessageBox.Show($"Failed to purchase {AssetName}: {Rsp["errorMsg"].Value<string>()}", Rsp["title"].Value<string>(), MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        ModernDialog.Show($"Failed to purchase {AssetName}: {Rsp["errorMsg"].Value<string>()}", Rsp["title"].Value<string>(), MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
                 else
-                    MessageBox.Show($"Failed to purchase {AssetName} [{Response.StatusCode}]\n\n{Response.Content}", "Purchase Asset", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    ModernDialog.Show($"Failed to purchase {AssetName} [{Response.StatusCode}]\n\n{Response.Content}", "Purchase Asset", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 

@@ -90,6 +90,29 @@ namespace RBX_Alt_Manager.Classes
         public static void Text_(Graphics G, string Value, Font F, Rectangle R, Color C, TextFormatFlags Extra = TextFormatFlags.Left) =>
             TextRenderer.DrawText(G, Value ?? string.Empty, F, R, C, Extra | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine);
 
+        /// <summary>
+        /// Same as Text_, but drawn with GDI+. Needed inside the account list: it paints into a 32-bit buffer where
+        /// GDI text (TextRenderer) ends up fully transparent - that is why the list view showed empty rows.
+        /// </summary>
+        public static void TextPlus(Graphics G, string Value, Font F, Rectangle R, Color C, TextFormatFlags Flags = TextFormatFlags.Left)
+        {
+            if (string.IsNullOrEmpty(Value) || R.Width <= 0 || R.Height <= 0) return;
+
+            using (var SF = new StringFormat(StringFormatFlags.NoWrap | StringFormatFlags.LineLimit))
+            using (var B = new SolidBrush(C))
+            {
+                SF.Trimming = StringTrimming.EllipsisCharacter;
+                SF.HotkeyPrefix = System.Drawing.Text.HotkeyPrefix.None;
+                SF.Alignment = Flags.HasFlag(TextFormatFlags.HorizontalCenter) ? StringAlignment.Center : (Flags.HasFlag(TextFormatFlags.Right) ? StringAlignment.Far : StringAlignment.Near);
+                SF.LineAlignment = Flags.HasFlag(TextFormatFlags.Bottom) ? StringAlignment.Far : StringAlignment.Center;
+
+                var Old = G.TextRenderingHint;
+                G.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
+                G.DrawString(Value, F, B, R, SF);
+                G.TextRenderingHint = Old;
+            }
+        }
+
         public static readonly Color Gold = Color.FromArgb(230, 180, 40);
 
         private static Brush RainbowBrush(Rectangle R)
@@ -234,6 +257,18 @@ namespace RBX_Alt_Manager.Classes
                     case IconKind.Chevron:
                         G.DrawLines(Pen, new[] { P(7, 10), P(12, 15), P(17, 10) });
                         break;
+                    case IconKind.Back:
+                        G.DrawLine(Pen, P(5, 12), P(20, 12));
+                        G.DrawLines(Pen, new[] { P(11, 6), P(5, 12), P(11, 18) });
+                        break;
+                    case IconKind.Tools: // wrench
+                        G.DrawEllipse(Pen, Rc(12, 3, 9, 9));
+                        G.DrawLine(Pen, P(13.5f, 10.5f), P(4, 20));
+                        break;
+                    case IconKind.User:
+                        G.DrawEllipse(Pen, Rc(8, 3, 8, 8));
+                        G.DrawLines(Pen, new[] { P(4, 21), P(4, 17), P(8, 14), P(16, 14), P(20, 17), P(20, 21) });
+                        break;
                 }
             }
 
@@ -241,7 +276,41 @@ namespace RBX_Alt_Manager.Classes
         }
     }
 
-    public enum IconKind { None, Servers, Clock, Gear, Grid, Plus, Login, Ban, Eye, Save, Search, Shuffle, Chevron }
+    /// <summary>The Virtuality Manager icon, used by every window (title bar + taskbar).</summary>
+    public static class AppIcon
+    {
+        private static Icon Cached;
+        private static bool Tried;
+
+        public static Icon Value
+        {
+            get
+            {
+                if (Tried) return Cached;
+                Tried = true;
+
+                try
+                {
+                    using (var S = System.Reflection.Assembly.GetExecutingAssembly().GetManifestResourceStream("virtuality.ico"))
+                        if (S != null) Cached = new Icon(S);
+                }
+                catch { }
+
+                return Cached;
+            }
+        }
+
+        /// <summary>Makes it the default icon of every form that doesn't set its own (settings, utilities, dialogs, browser ...).</summary>
+        public static void ApplyAsDefault()
+        {
+            if (Value == null) return;
+
+            try { typeof(System.Windows.Forms.Form).GetField("defaultIcon", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)?.SetValue(null, Value); }
+            catch { }
+        }
+    }
+
+    public enum IconKind { None, Servers, Clock, Gear, Grid, Plus, Login, Ban, Eye, Save, Search, Shuffle, Chevron, Back, Tools, User }
 
     public enum ModernButtonStyle { Secondary, Primary, Outline, Danger, Ghost }
 
@@ -257,6 +326,10 @@ namespace RBX_Alt_Manager.Classes
         [DefaultValue(true)] public bool SplitMenu { get; set; } = true;
         public float TextPoints { get; set; } = 9.25f;
         public bool Bold { get; set; } = true;
+
+        /// <summary>Shows that the page of this button is open (header icons).</summary>
+        private bool Active_;
+        public bool Active { get => Active_; set { if (Active_ == value) return; Active_ = value; Invalidate(); } }
 
         public ModernButton()
         {
@@ -324,6 +397,13 @@ namespace RBX_Alt_Manager.Classes
                     Fill = Down ? Modern.Pressed : (Hovered ? Modern.Hover : Modern.Field);
                     Border = Modern.FieldBorder; Fore = Modern.Text;
                     break;
+            }
+
+            if (Active_ && Enabled && Style != ModernButtonStyle.Primary)
+            {
+                Fill = Down ? Modern.Pressed : Color.FromArgb(30, 22, 48);
+                Border = Modern.Accent;
+                Fore = Color.White;
             }
 
             if (!Enabled)

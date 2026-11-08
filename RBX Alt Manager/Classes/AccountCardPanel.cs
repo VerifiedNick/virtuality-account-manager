@@ -27,6 +27,21 @@ namespace RBX_Alt_Manager.Classes
         public Func<string, string> GroupTitle = g => g;
         public string FriendTarget = "";
 
+        /// <summary>Login for one account (the per-row buttons of a multi selection).</summary>
+        public Action<Account> LoginRequested = _ => { };
+
+        /// <summary>A login window is open: no second one at the same time.</summary>
+        private bool LoginBusy_;
+        public bool LoginBusy { get => LoginBusy_; set { LoginBusy_ = value; RefreshState(); } }
+
+        private readonly SelectionList List;
+        private Rectangle ListBoxR, ListCaptionR;
+
+        private bool Multi => Accounts.Count > 1;
+
+        /// <summary>First selected account that has to log in again.</summary>
+        public Account NextToLogin => Accounts.FirstOrDefault(a => AccountRowRenderer.StateOf(a) == AccountState.NeedsLogin);
+
         private List<Account> Accounts = new List<Account>();
         private bool PasswordVisible;
 
@@ -42,6 +57,10 @@ namespace RBX_Alt_Manager.Classes
 
             foreach (var B in new[] { CopyUser, CopyPassword, ShowPassword, Login, AddFriend, OpenBrowser, Follow, MoreTools, ChangeMain, EditNote, Remove })
                 Controls.Add(B);
+
+            List = new SelectionList(this) { Visible = false };
+            Controls.Add(List);
+            Modern.DarkScrollbars(List);
 
             ShowPassword.Click += (s, e) => { PasswordVisible = !PasswordVisible; Invalidate(); };
 
@@ -69,8 +88,28 @@ namespace RBX_Alt_Manager.Classes
             CopyUser.Enabled = Any;
             CopyPassword.Enabled = HasPassword;
             ShowPassword.Visible = Single != null && HasPassword;
-            Login.Enabled = Single != null;
-            Login.Text = Single != null && Single.GetField("BanStatus") == "NeedsLogin" ? "Log in again" : "Login";
+
+            CopyUser.Text = Multi ? "Copy names" : "Copy";
+            CopyPassword.Text = Multi ? "Copy passwords" : "Copy";
+            CopyUser.Style = CopyPassword.Style = Multi ? ModernButtonStyle.Ghost : ModernButtonStyle.Secondary;
+            CopyUser.Bold = CopyPassword.Bold = !Multi;
+
+            if (Multi)
+            {
+                int Left = Accounts.Count(a => AccountRowRenderer.StateOf(a) == AccountState.NeedsLogin);
+                Login.Enabled = Left > 0 && !LoginBusy_;
+                Login.Text = Left > 0 ? $"Log in next · {Left} left" : "All selected are logged in";
+            }
+            else
+            {
+                Login.Enabled = Single != null && !LoginBusy_;
+                Login.Text = Single != null && Single.GetField("BanStatus") == "NeedsLogin" ? "Log in again" : "Login";
+            }
+
+            if (LoginBusy_) Login.Text = "Login window open…";
+
+            List.Visible = Multi;
+            List.SetAccounts(Multi ? Accounts : new List<Account>());
             OpenBrowser.Enabled = Follow.Enabled = EditNote.Enabled = Remove.Enabled = Any;
 
             if (!AddFriendBusy)
@@ -108,6 +147,14 @@ namespace RBX_Alt_Manager.Classes
                 Y = WarningR.Bottom + Modern.Px(12);
             }
             else WarningR = Rectangle.Empty;
+
+            if (Multi)
+            {
+                LayoutMulti(P, W, Y, Gap);
+                return;
+            }
+
+            ListBoxR = ListCaptionR = Rectangle.Empty;
 
             // login data box
             int FieldH = Modern.Px(40), CopyW = Modern.Px(86), Inner = Modern.Px(12);
@@ -147,6 +194,47 @@ namespace RBX_Alt_Manager.Classes
             Y += Modern.Px(28);
 
             int BottomH = Modern.Px(36);
+            int BottomY = Math.Max(Y + Modern.Px(14), Height - P - BottomH);
+            EditNote.SetBounds(P, BottomY, Half, BottomH);
+            Remove.SetBounds(P + Half + Gap, BottomY, W - Half - Gap, BottomH);
+        }
+
+        /// <summary>Several accounts: a scrollable list of them, each with its own Login button.</summary>
+        private void LayoutMulti(int P, int W, int Y, int Gap)
+        {
+            int Inner = Modern.Px(12), Half = (W - Gap) / 2, BH = Modern.Px(40), BottomH = Modern.Px(36);
+
+            // everything under the list has a fixed height, the list takes the rest
+            int Below = Modern.Px(14) + Modern.Px(46) + Modern.Px(4) + Modern.Px(34) + Modern.Px(10) + BH + Modern.Px(8) + BH + Modern.Px(10) + Modern.Px(28) + Modern.Px(14) + BottomH + P;
+            int BoxH = Math.Max(Modern.Px(150), Height - Y - Below);
+
+            ListBoxR = new Rectangle(P, Y, W, BoxH);
+            ListCaptionR = new Rectangle(P + Inner, Y + Inner, W - Inner * 2, Modern.Px(16));
+
+            int CopyW = Modern.Px(112);
+            CopyPassword.SetBounds(ListBoxR.Right - Inner - CopyW, Y + Modern.Px(6), CopyW, Modern.Px(26));
+            CopyUser.SetBounds(CopyPassword.Left - Modern.Px(4) - Modern.Px(92), Y + Modern.Px(6), Modern.Px(92), Modern.Px(26));
+            ListCaptionR.Width = CopyUser.Left - ListCaptionR.X - Modern.Px(8);
+
+            List.SetBounds(P + 1, ListCaptionR.Bottom + Modern.Px(10), W - 2, ListBoxR.Bottom - 1 - (ListCaptionR.Bottom + Modern.Px(10)));
+            Y = ListBoxR.Bottom + Modern.Px(14);
+
+            Login.SetBounds(P, Y, W, Modern.Px(46));
+            LoginHintR = new Rectangle(P, Login.Bottom + Modern.Px(4), W, Modern.Px(34));
+            Y = LoginHintR.Bottom + Modern.Px(10);
+
+            AddFriend.SetBounds(P, Y, Half, BH);
+            OpenBrowser.SetBounds(P + Half + Gap, Y, W - Half - Gap, BH);
+            Y += BH + Modern.Px(8);
+            Follow.SetBounds(P, Y, Half, BH);
+            MoreTools.SetBounds(P + Half + Gap, Y, W - Half - Gap, BH);
+            Y += BH + Modern.Px(10);
+
+            int ChangeW = Modern.Px(64);
+            MainRowR = new Rectangle(P, Y, W - ChangeW - Modern.Px(6), Modern.Px(28));
+            ChangeMain.SetBounds(P + W - ChangeW, Y, ChangeW, Modern.Px(28));
+            Y += Modern.Px(28);
+
             int BottomY = Math.Max(Y + Modern.Px(14), Height - P - BottomH);
             EditNote.SetBounds(P, BottomY, Half, BottomH);
             Remove.SetBounds(P + Half + Gap, BottomY, W - Half - Gap, BottomH);
@@ -231,6 +319,17 @@ namespace RBX_Alt_Manager.Classes
                 TextRenderer.DrawText(G, Msg, Modern.Font(8.5f), Rectangle.Inflate(WarningR, -Modern.Px(10), -Modern.Px(4)), Color.FromArgb(240, 170, 170), TextFormatFlags.WordBreak | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
             }
 
+            if (Multi)
+            {
+                Modern.Box(G, ListBoxR, Modern.Bg, Modern.Line);
+                int Need = Accounts.Count(a => AccountRowRenderer.StateOf(a) == AccountState.NeedsLogin);
+                Modern.Text_(G, Need > 0 ? $"SELECTED · {Need} NOT LOGGED IN" : "SELECTED", Modern.Font(7.75f, FontStyle.Regular, true), ListCaptionR, Need > 0 ? Modern.Warn : Modern.Sub, TextFormatFlags.NoPadding);
+
+                TextRenderer.DrawText(G, "One login window at a time: do the captcha, then the next account. Each row has its own Login button too.", Modern.Font(8f), LoginHintR, Modern.Sub, TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix | TextFormatFlags.Top);
+                PaintMainRow(G);
+                return;
+            }
+
             // login data
             Modern.Box(G, LoginBoxR, Modern.Bg, Modern.Line);
             Modern.Text_(G, "LOGIN DATA", Modern.Font(7.75f, FontStyle.Regular, true), LoginCaptionR, Modern.Sub, TextFormatFlags.NoPadding);
@@ -282,12 +381,145 @@ namespace RBX_Alt_Manager.Classes
 
             TextRenderer.DrawText(G, "Opens the Roblox login with username and password filled in. You only do the captcha / 2-step code.", Modern.Font(8f), LoginHintR, Modern.Sub, TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix | TextFormatFlags.Top);
 
+            PaintMainRow(G);
+        }
+
+        private void PaintMainRow(Graphics G)
+        {
             // main account row
             Font MF = Modern.Font(8.5f);
             string Lead = "Main account for friend requests: ";
             int LW = TextRenderer.MeasureText(G, Lead, MF, Size.Empty, TextFormatFlags.NoPadding).Width;
             Modern.Text_(G, Lead, MF, MainRowR, Modern.Sub, TextFormatFlags.NoPadding);
             Modern.Text_(G, FriendTarget, Modern.Font(8.5f, FontStyle.Regular, true), new Rectangle(MainRowR.X + LW, MainRowR.Y, Math.Max(0, MainRowR.Width - LW), MainRowR.Height), Modern.Text, TextFormatFlags.NoPadding);
+        }
+
+        /// <summary>Scrollable rows of the selected accounts: picture, name, status and a Login button per account.</summary>
+        private class SelectionList : Panel
+        {
+            private readonly AccountCardPanel Owner;
+            private List<Account> Items = new List<Account>();
+            private int HoverRow = -1;
+            private bool HoverButton;
+
+            private int RowH => Modern.Px(52);
+            private int Inner => Modern.Px(11);
+
+            public SelectionList(AccountCardPanel Owner)
+            {
+                this.Owner = Owner;
+                SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
+                AutoScroll = true;
+                BackColor = Modern.Bg;
+                Tag = "NoScaling";
+            }
+
+            public void SetAccounts(List<Account> Accounts)
+            {
+                Items = Accounts.ToList();
+                AutoScrollMinSize = new Size(0, Items.Count * RowH);
+                Invalidate();
+            }
+
+            private Rectangle RowRect(int i) => new Rectangle(0, i * RowH + AutoScrollPosition.Y, ClientSize.Width, RowH);
+
+            private Rectangle ButtonRect(Rectangle Row)
+            {
+                int W = Modern.Px(78), H = Modern.Px(28);
+                return new Rectangle(Row.Right - Inner - W, Row.Y + (Row.Height - H) / 2, W, H);
+            }
+
+            private bool CanLogin(Account A) => !Owner.LoginBusy && AccountRowRenderer.StateOf(A) != AccountState.Banned;
+
+            protected override void OnScroll(ScrollEventArgs se) { base.OnScroll(se); Invalidate(); }
+            protected override void OnMouseWheel(MouseEventArgs e) { base.OnMouseWheel(e); Invalidate(); }
+
+            protected override void OnMouseMove(MouseEventArgs e)
+            {
+                base.OnMouseMove(e);
+
+                int Row = (e.Y - AutoScrollPosition.Y) / RowH;
+                if (Row < 0 || Row >= Items.Count) Row = -1;
+
+                bool OnButton = Row >= 0 && ButtonRect(RowRect(Row)).Contains(e.Location);
+
+                if (Row != HoverRow || OnButton != HoverButton)
+                {
+                    HoverRow = Row;
+                    HoverButton = OnButton;
+                    Cursor = OnButton && CanLogin(Items[Row]) ? Cursors.Hand : Cursors.Default;
+                    Invalidate();
+                }
+            }
+
+            protected override void OnMouseLeave(EventArgs e)
+            {
+                base.OnMouseLeave(e);
+                HoverRow = -1;
+                HoverButton = false;
+                Invalidate();
+            }
+
+            protected override void OnMouseClick(MouseEventArgs e)
+            {
+                base.OnMouseClick(e);
+
+                if (e.Button != MouseButtons.Left || HoverRow < 0 || HoverRow >= Items.Count) return;
+
+                if (ButtonRect(RowRect(HoverRow)).Contains(e.Location) && CanLogin(Items[HoverRow]))
+                    Owner.LoginRequested(Items[HoverRow]);
+            }
+
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                var G = e.Graphics;
+                G.Clear(Modern.Bg);
+                Modern.Prepare(G);
+
+                int First = Math.Max(0, -AutoScrollPosition.Y / RowH), Last = Math.Min(Items.Count - 1, First + ClientSize.Height / RowH + 1);
+
+                for (int i = First; i <= Last; i++)
+                {
+                    var A = Items[i];
+                    var R = RowRect(i);
+                    var State = AccountRowRenderer.StateOf(A);
+                    bool Need = State == AccountState.NeedsLogin, Banned = State == AccountState.Banned;
+
+                    if (i == HoverRow)
+                        using (var B = new SolidBrush(Modern.Panel)) G.FillRectangle(B, R);
+
+                    if (Need)
+                        using (var B = new SolidBrush(Modern.Warn)) G.FillRectangle(B, R.X, R.Y + Modern.Px(8), Modern.Px(3), R.Height - Modern.Px(16));
+
+                    using (var P = new Pen(Modern.Line)) G.DrawLine(P, R.X + Inner, R.Bottom - 1, R.Right - Inner, R.Bottom - 1);
+
+                    // picture
+                    int Av = Modern.Px(32);
+                    var AvR = new Rectangle(R.X + Inner, R.Y + (R.Height - Av) / 2, Av, Av);
+                    Modern.Box(G, AvR, Banned ? Modern.DangerBg : Modern.Field, Banned ? Modern.DangerLine : Modern.FieldBorder);
+
+                    Image Pic = AccountRowRenderer.HideNames ? null : AvatarCache.Get(A.UserID);
+                    if (Pic != null) G.DrawImage(Pic, Rectangle.Inflate(AvR, -1, -1));
+                    else Modern.Text_(G, AccountRowRenderer.HideNames ? "··" : Modern.Initials(A.Username), Modern.Font(8f, FontStyle.Regular, true), AvR, Modern.Text2, TextFormatFlags.HorizontalCenter | TextFormatFlags.NoPadding);
+
+                    // button
+                    var BR = ButtonRect(R);
+                    bool Can = CanLogin(A), Hot = i == HoverRow && HoverButton && Can;
+                    Color Fill = !Can ? Modern.Bg : (Need ? (Hot ? Modern.AccentHover : Modern.Accent) : (Hot ? Modern.Hover : Modern.Field));
+                    Color Border = !Can ? Modern.Line : (Need ? Fill : Modern.FieldBorder);
+                    Color Fore = !Can ? Modern.Faint : (Need ? Color.White : Modern.Text);
+
+                    Modern.Box(G, BR, Fill, Border);
+                    Modern.Text_(G, Need ? "Log in" : "Login", Modern.Font(8.75f, FontStyle.Regular, true), BR, Fore, TextFormatFlags.HorizontalCenter | TextFormatFlags.NoPadding);
+
+                    // name + status
+                    int TX = AvR.Right + Modern.Px(10), TW = BR.Left - TX - Modern.Px(8);
+                    string Name = AccountRowRenderer.HideNames ? (string.IsNullOrEmpty(A.Alias) ? "Hidden" : A.Alias) : A.Username;
+
+                    Modern.Text_(G, Name, Modern.Font(9.25f, FontStyle.Regular, true), new Rectangle(TX, R.Y + Modern.Px(7), TW, Modern.Px(20)), Banned ? Modern.Danger : Modern.Text, TextFormatFlags.NoPadding);
+                    Modern.Text_(G, AccountRowRenderer.StateText(A, State), Modern.Font(8.25f), new Rectangle(TX, R.Y + Modern.Px(26), TW, Modern.Px(18)), State == AccountState.Offline ? Modern.Sub : AccountRowRenderer.StateColor(State), TextFormatFlags.NoPadding);
+                }
+            }
         }
     }
 }

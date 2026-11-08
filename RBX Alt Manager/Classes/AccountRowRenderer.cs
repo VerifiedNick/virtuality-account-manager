@@ -5,7 +5,7 @@ using System.Windows.Forms;
 
 namespace RBX_Alt_Manager.Classes
 {
-    public enum AccountColumnKind { Account, Note, Status, LastUsed, Empty }
+    public enum AccountColumnKind { Account, Note, Status, LastUsed, Group, Empty }
 
     public enum AccountState { Offline, Online, InGame, InStudio, NeedsLogin, Banned }
 
@@ -60,6 +60,9 @@ namespace RBX_Alt_Manager.Classes
             }
         }
 
+        /// <summary>Display name of a group (set by the main window: without number prefix / "A:").</summary>
+        public static Func<string, string> GroupTitle;
+
         public static bool HideNames => AccountManager.General != null && AccountManager.General.Get<bool>("HideUsernames");
 
         public override void Render(Graphics G, Rectangle R)
@@ -94,26 +97,26 @@ namespace RBX_Alt_Manager.Classes
                     Rectangle Av = new Rectangle(R.X + Pad + Modern.Px(4), R.Y + (R.Height - Sz) / 2, Sz, Sz);
 
                     Modern.Box(G, Av, Banned ? Modern.DangerBg : Modern.Hover, Banned ? Modern.DangerLine : Modern.FieldBorder);
-                    Modern.Text_(G, HideNames ? "··" : Modern.Initials(A.Username), Modern.Font(8f, FontStyle.Regular, true), Av, Banned ? Modern.Danger : Modern.Text2, TextFormatFlags.HorizontalCenter | TextFormatFlags.NoPadding);
+                    Modern.TextPlus(G, HideNames ? "··" : Modern.Initials(A.Username), Modern.Font(8f, FontStyle.Regular, true), Av, Banned ? Modern.Danger : Modern.Text2, TextFormatFlags.HorizontalCenter | TextFormatFlags.NoPadding);
 
                     int TX = Av.Right + Modern.Px(10), TW = R.Right - TX - Modern.Px(6);
                     string Name = HideNames ? (string.IsNullOrEmpty(A.Alias) ? "Hidden" : A.Alias) : A.Username;
                     string Second = HideNames ? string.Empty : A.Alias;
 
                     if (string.IsNullOrEmpty(Second))
-                        Modern.Text_(G, Name, Modern.Font(9.75f, FontStyle.Regular, true), new Rectangle(TX, R.Y, TW, R.Height), Banned ? Modern.Danger : Modern.Text, TextFormatFlags.NoPadding);
+                        Modern.TextPlus(G, Name, Modern.Font(9.75f, FontStyle.Regular, true), new Rectangle(TX, R.Y, TW, R.Height), Banned ? Modern.Danger : Modern.Text, TextFormatFlags.NoPadding);
                     else
                     {
                         int H = R.Height / 2;
-                        Modern.Text_(G, Name, Modern.Font(9.75f, FontStyle.Regular, true), new Rectangle(TX, R.Y + Modern.Px(4), TW, H - Modern.Px(2)), Banned ? Modern.Danger : Modern.Text, TextFormatFlags.NoPadding | TextFormatFlags.Bottom);
-                        Modern.Text_(G, Second, Modern.Font(8.25f), new Rectangle(TX, R.Y + H, TW, H - Modern.Px(6)), Modern.Sub, TextFormatFlags.NoPadding | TextFormatFlags.Top);
+                        Modern.TextPlus(G, Name, Modern.Font(9.75f, FontStyle.Regular, true), new Rectangle(TX, R.Y + Modern.Px(4), TW, H - Modern.Px(2)), Banned ? Modern.Danger : Modern.Text, TextFormatFlags.NoPadding | TextFormatFlags.Bottom);
+                        Modern.TextPlus(G, Second, Modern.Font(8.25f), new Rectangle(TX, R.Y + H, TW, H - Modern.Px(6)), Modern.Sub, TextFormatFlags.NoPadding | TextFormatFlags.Top);
                     }
                     break;
                 }
                 case AccountColumnKind.Note:
                 {
                     string Note = (A.Description ?? string.Empty).Replace("\r", " ").Replace("\n", " ").Trim();
-                    Modern.Text_(G, Note, Modern.Font(9f), new Rectangle(R.X + Modern.Px(4), R.Y, R.Width - Pad, R.Height), Modern.Text2, TextFormatFlags.NoPadding);
+                    Modern.TextPlus(G, Note, Modern.Font(9f), new Rectangle(R.X + Modern.Px(4), R.Y, R.Width - Pad, R.Height), Modern.Text2, TextFormatFlags.NoPadding);
                     break;
                 }
                 case AccountColumnKind.Status:
@@ -124,7 +127,13 @@ namespace RBX_Alt_Manager.Classes
                     using (var B = new SolidBrush(C))
                         G.FillRectangle(B, R.X + Modern.Px(4), R.Y + (R.Height - Dot) / 2, Dot, Dot);
 
-                    Modern.Text_(G, StateText(A, State), Modern.Font(9f, FontStyle.Regular, State == AccountState.Banned), new Rectangle(R.X + Modern.Px(4) + Dot + Modern.Px(8), R.Y, R.Width - Dot - Modern.Px(16), R.Height), State == AccountState.Offline ? Modern.Sub : C, TextFormatFlags.NoPadding);
+                    Modern.TextPlus(G, StateText(A, State), Modern.Font(9f, FontStyle.Regular, State == AccountState.Banned), new Rectangle(R.X + Modern.Px(4) + Dot + Modern.Px(8), R.Y, R.Width - Dot - Modern.Px(16), R.Height), State == AccountState.Offline ? Modern.Sub : C, TextFormatFlags.NoPadding);
+                    break;
+                }
+                case AccountColumnKind.Group:
+                {
+                    string Title = GroupTitle != null ? GroupTitle(A.Group) : A.Group;
+                    Modern.TextPlus(G, Title, Modern.Font(9f), new Rectangle(R.X + Modern.Px(4), R.Y, R.Width - Pad, R.Height), Modern.Sub, TextFormatFlags.NoPadding);
                     break;
                 }
                 case AccountColumnKind.LastUsed:
@@ -133,7 +142,7 @@ namespace RBX_Alt_Manager.Classes
                     bool Aging = Days > 20 && !(AccountManager.General?.Get<bool>("DisableAgingAlert") ?? false);
                     Color C = Aging ? (Days > 30 ? Modern.Danger : Modern.Warn) : Modern.Sub;
 
-                    Modern.Text_(G, Modern.Ago(A.LastUse), Modern.Font(9f), new Rectangle(R.X + Modern.Px(4), R.Y, R.Width - Pad, R.Height), C, TextFormatFlags.NoPadding);
+                    Modern.TextPlus(G, Modern.Ago(A.LastUse), Modern.Font(9f), new Rectangle(R.X + Modern.Px(4), R.Y, R.Width - Pad, R.Height), C, TextFormatFlags.NoPadding);
                     break;
                 }
             }

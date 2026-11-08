@@ -171,7 +171,7 @@ namespace RBX_Alt_Manager
         {
             if (!GetCSRFToken(out _))
             {
-                if (!Internal) MessageBox.Show("Invalid Account Session!", "Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                if (!Internal) ModernDialog.Show("Invalid Account Session!", "Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Error);
 
                 return false;
             }
@@ -190,7 +190,7 @@ namespace RBX_Alt_Manager
                 if (!pinInfo["isEnabled"].Value<bool>() || (pinInfo["unlockedUntil"].Type != JTokenType.Null && pinInfo["unlockedUntil"].Value<int>() > 0)) return true;
             }
 
-            if (!Internal) MessageBox.Show("Pin required!", "Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            if (!Internal) ModernDialog.Show("Pin required!", "Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Error);
 
             return false;
         }
@@ -219,7 +219,7 @@ namespace RBX_Alt_Manager
 
                 if (PinUnlocked > DateTime.Now)
                 {
-                    MessageBox.Show("Pin unlocked for 5 minutes", "Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    ModernDialog.Show("Pin unlocked for 5 minutes", "Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
                     return true;
                 }
@@ -325,14 +325,14 @@ namespace RBX_Alt_Manager
                     AccountManager.SaveAccounts();
                 }
                 else
-                    MessageBox.Show("An error occured while changing passwords, you will need to re-login with your new password!", "Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    ModernDialog.Show("An error occured while changing passwords, you will need to re-login with your new password!", "Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Error);
 
-                MessageBox.Show("Password changed!", "Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ModernDialog.Show("Password changed!", "Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
                 return true;
             }
 
-            MessageBox.Show("Failed to change password!", "Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            ModernDialog.Show("Failed to change password!", "Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Error);
 
             return false;
         }
@@ -353,12 +353,12 @@ namespace RBX_Alt_Manager
 
             if (response.IsSuccessful && response.StatusCode == HttpStatusCode.OK)
             {
-                MessageBox.Show("Email changed!", "Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ModernDialog.Show("Email changed!", "Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
                 return true;
             }
 
-            MessageBox.Show("Failed to change email, maybe your password is incorrect!", "Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            ModernDialog.Show("Failed to change email, maybe your password is incorrect!", "Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Error);
 
             return false;
         }
@@ -385,14 +385,14 @@ namespace RBX_Alt_Manager
                     AccountManager.SaveAccounts(true);
                 }
                 else if (!Internal)
-                    MessageBox.Show("An error occured, you will need to re-login!", "Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    ModernDialog.Show("An error occured, you will need to re-login!", "Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Error);
 
-                if (!Internal) MessageBox.Show("Signed out of all other sessions!", "Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                if (!Internal) ModernDialog.Show("Signed out of all other sessions!", "Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
                 return true;
             }
 
-            if (!Internal) MessageBox.Show("Failed to log out of other sessions!", "Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            if (!Internal) ModernDialog.Show("Failed to log out of other sessions!", "Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Error);
 
             return false;
         }
@@ -668,7 +668,7 @@ namespace RBX_Alt_Manager
                         }
                         catch (Exception x)
                         {
-                            Utilities.InvokeIfRequired(AccountManager.Instance, () => MessageBox.Show($"ERROR: Failed to launch Roblox! Try re-installing Roblox.\n\n{x.Message}{x.StackTrace}", "Roblox Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Error));
+                            Utilities.InvokeIfRequired(AccountManager.Instance, () => ModernDialog.Show($"ERROR: Failed to launch Roblox! Try re-installing Roblox.\n\n{x.Message}{x.StackTrace}", "Roblox Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Error));
                             AccountManager.Instance.CancelLaunching();
                             AccountManager.Instance.NextAccount();
                         }

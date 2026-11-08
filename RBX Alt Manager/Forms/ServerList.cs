@@ -33,6 +33,7 @@ namespace RBX_Alt_Manager
             this.Rescale();
 
             if (ThemeEditor.UseDarkTopBar) Icon = Properties.Resources.server_icon_white;
+            if (Classes.AppIcon.Value != null) Icon = Classes.AppIcon.Value; // same icon in every window
 
             RobloxClient = new RestClient("https://roblox.com/");
             ThumbClient = new RestClient("https://thumbnails.roblox.com/");
@@ -70,6 +71,7 @@ namespace RBX_Alt_Manager
 
             ApplyTheme(Controls);
             //ApplyTheme(Tabs.TabPages);
+            RBX_Alt_Manager.Classes.ModernSkin.Apply(this); // Virtuality look on top of the old theme
         }
 
         public void ApplyTheme(Control.ControlCollection _Controls)
@@ -178,7 +180,7 @@ namespace RBX_Alt_Manager
                 }
                 catch (Exception x)
                 {
-                    MessageBox.Show("Failed to load favorite games!\n" + x);
+                    ModernDialog.Show("Failed to load favorite games!\n" + x);
                 }
             }
             else
@@ -292,7 +294,7 @@ namespace RBX_Alt_Manager
                 string res = AccountManager.SelectedAccount.SetServer(Convert.ToInt64(OtherPlaceId.Text), ServerListView.SelectedItem.Text, out bool Success);
 
                 if (!Success)
-                    MessageBox.Show(res);
+                    ModernDialog.Show(res);
                 else
                     Console.Beep();
             }
@@ -301,7 +303,7 @@ namespace RBX_Alt_Manager
                 string res = await AccountManager.SelectedAccount.JoinServer(Convert.ToInt64(AccountManager.Instance.PlaceID.Text), ServerListView.SelectedItem.Text, false, false);
 
                 if (!res.Contains("Success"))
-                    MessageBox.Show(res);
+                    ModernDialog.Show(res);
             }
         }
 
@@ -309,13 +311,13 @@ namespace RBX_Alt_Manager
         {
             if (Busy)
             {
-                MessageBox.Show("Server List is currently busy", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ModernDialog.Show("Server List is currently busy", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
             if (!AccountManager.GetUserID(Username.Text, out long UserID, out _))
             {
-                MessageBox.Show($"Failed to get UserID of {Username.Text}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ModernDialog.Show($"Failed to get UserID of {Username.Text}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
@@ -325,7 +327,7 @@ namespace RBX_Alt_Manager
 
             if (avresponse.StatusCode != HttpStatusCode.OK)
             {
-                MessageBox.Show($"Failed to get AvatarUrl of {Username.Text}\n\n{avresponse.StatusCode}: {avresponse.Content}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ModernDialog.Show($"Failed to get AvatarUrl of {Username.Text}\n\n{avresponse.StatusCode}: {avresponse.Content}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
@@ -524,7 +526,7 @@ namespace RBX_Alt_Manager
                 string res = await AccountManager.SelectedAccount.JoinServer(game.PlaceID);
 
                 if (!res.Contains("Success"))
-                    MessageBox.Show(res);
+                    ModernDialog.Show(res);
             }
         }
 
@@ -548,7 +550,7 @@ namespace RBX_Alt_Manager
                     res = await AccountManager.SelectedAccount.JoinServer(game.Details.placeId, game.PrivateServer);
 
                 if (res != "Success")
-                    MessageBox.Show(res);
+                    ModernDialog.Show(res);
             }
         }
 
@@ -573,7 +575,7 @@ namespace RBX_Alt_Manager
         {
             if (((ToolStripMenuItem)sender).GetSource()?.Parent is GameControl gc && (gc?.Favorite ?? FavoritesListView?.SelectedObject) is FavoriteGame game)
             {
-                DialogResult res = MessageBox.Show("Are you sure?", "Remove Favorite", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+                DialogResult res = ModernDialog.Show("Are you sure?", "Remove Favorite", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
 
                 if (res == DialogResult.Yes)
                 {
@@ -613,7 +615,7 @@ namespace RBX_Alt_Manager
                     AddFavoriteToList(new FavoriteGame(placeInfo.Name, Convert.ToInt64(AccountManager.CurrentPlaceId), SaveFavorites));
             }
             else
-                MessageBox.Show($"[{response.StatusCode} {response.StatusDescription}]\n{response.Content}", $"Can't add {PlaceId} to favorites!", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ModernDialog.Show($"[{response.StatusCode} {response.StatusDescription}]\n{response.Content}", $"Can't add {PlaceId} to favorites!", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
 
         private void copyPlaceIDToolStripMenuItem_Click(object sender, EventArgs e)

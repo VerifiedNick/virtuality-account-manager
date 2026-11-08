@@ -1,4 +1,4 @@
-using BrightIdeasSoftware;
+﻿using BrightIdeasSoftware;
 using ICSharpCode.SharpZipLib.Zip;
 using Microsoft.Win32;
 using Microsoft.WindowsAPICodePack.Dialogs;
@@ -138,7 +138,7 @@ namespace RBX_Alt_Manager
                     if (!Utilities.YesNoPrompt("Roblox Account Manager", "RAM has detected you have a monitor larger than average", $"Would you like to keep the WindowScale setting of {Program.Scale:F2}?", false))
                         General.Set("WindowScale", "1.0");
                     else
-                        MessageBox.Show("In case the font scaling is incorrect, open RAMSettings.ini and change \"ScaleFonts=true\" to \"ScaleFonts=false\" without the quotes.", "Roblox Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        ModernDialog.Show("In case the font scaling is incorrect, open RAMSettings.ini and change \"ScaleFonts=true\" to \"ScaleFonts=false\" without the quotes.", "Roblox Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             if (!General.Exists("ScaleFonts")) General.Set("ScaleFonts", "true");
             if (!General.Exists("AutoCookieRefresh")) General.Set("AutoCookieRefresh", "true");
@@ -180,12 +180,7 @@ namespace RBX_Alt_Manager
             if (ThemeEditor.UseDarkTopBar) Icon = Properties.Resources.team_KX4_icon_white; // this has to go after or icon wont actually change
 
             // Virtuality Manager icon (all sizes; tiny sizes show only the V so it stays readable)
-            try
-            {
-                using (var IconStream = Assembly.GetExecutingAssembly().GetManifestResourceStream("virtuality.ico"))
-                    if (IconStream != null) Icon = new Icon(IconStream);
-            }
-            catch (Exception x) { Program.Logger.Warn($"[Icon] {x.Message}"); }
+            if (AppIcon.Value != null) Icon = AppIcon.Value;
 
             AccountsView.UnfocusedHighlightBackgroundColor = Color.FromArgb(0, 150, 215);
             AccountsView.UnfocusedHighlightForegroundColor = Color.FromArgb(240, 240, 240);
@@ -324,7 +319,7 @@ namespace RBX_Alt_Manager
         {
             if (!GroupImages.EntryListReady)
             {
-                MessageBox.Show("The entry list is still loading (or there is no internet connection). Try again in a moment.", "Roblox Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ModernDialog.Show("The entry list is still loading (or there is no internet connection). Try again in a moment.", "Roblox Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
@@ -347,7 +342,7 @@ namespace RBX_Alt_Manager
 
                 if (Matches.Count == 0)
                 {
-                    MessageBox.Show($"No entry called \"{Input}\" was found. Check the spelling, e.g. \"Rank Sample Name\".", "Group Picture", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    ModernDialog.Show($"No entry called \"{Input}\" was found. Check the spelling, e.g. \"Rank Sample Name\".", "Group Picture", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     Suggestion = Input;
                     continue;
                 }
@@ -358,7 +353,7 @@ namespace RBX_Alt_Manager
                     return;
                 }
 
-                MessageBox.Show("Did you mean one of these?\n\n" + string.Join("\n", Matches), "Group Picture", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ModernDialog.Show("Did you mean one of these?\n\n" + string.Join("\n", Matches), "Group Picture", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 Suggestion = Matches[0];
             }
         }
@@ -433,7 +428,7 @@ namespace RBX_Alt_Manager
                         {
                             File.WriteAllBytes(SaveFilePath + ".bak", Data);
 
-                            MessageBox.Show($"Failed to load accounts!\nA backup file was created in case the data can be recovered.\n\n{e.Message}");
+                            ModernDialog.Show($"Failed to load accounts!\nA backup file was created in case the data can be recovered.\n\n{e.Message}");
                         }
                     }
             }
@@ -444,7 +439,7 @@ namespace RBX_Alt_Manager
             {
                 var Header = new ReadOnlySpan<byte>(BackupData, 0, Cryptography.RAMHeader.Length);
 
-                if (Header.SequenceEqual(Cryptography.RAMHeader) && MessageBox.Show("The existing backup file is password-locked, would you like to attempt to load it?", "Roblox Account Manager", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
+                if (Header.SequenceEqual(Cryptography.RAMHeader) && ModernDialog.Show("The existing backup file is password-locked, would you like to attempt to load it?", "Roblox Account Manager", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
                 {
                     if (File.Exists(SaveFilePath))
                     {
@@ -460,7 +455,7 @@ namespace RBX_Alt_Manager
                     return;
                 }
 
-                if (MessageBox.Show("No accounts were loaded but there is a backup file, would you like to load the backup file?", "Roblox Account Manager", MessageBoxButtons.YesNo, MessageBoxIcon.Exclamation) == DialogResult.Yes)
+                if (ModernDialog.Show("No accounts were loaded but there is a backup file, would you like to load the backup file?", "Roblox Account Manager", MessageBoxButtons.YesNo, MessageBoxIcon.Exclamation) == DialogResult.Yes)
                 {
                     try
                     {
@@ -471,7 +466,7 @@ namespace RBX_Alt_Manager
                     catch
                     {
                         try { AccountsList = JsonConvert.DeserializeObject<List<Account>>(Encoding.UTF8.GetString(BackupData)); }
-                        catch { MessageBox.Show("Failed to load backup file!", "Roblox Account Manager", MessageBoxButtons.OKCancel, MessageBoxIcon.Error); }
+                        catch { ModernDialog.Show("Failed to load backup file!", "Roblox Account Manager", MessageBoxButtons.OKCancel, MessageBoxIcon.Error); }
                     }
                 }
             }
@@ -593,7 +588,7 @@ namespace RBX_Alt_Manager
             }
             catch (Exception exception)
             {
-                MessageBox.Show($"Incorrect Password!\n\n{exception.Message}", "Roblox Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                ModernDialog.Show($"Incorrect Password!\n\n{exception.Message}", "Roblox Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
             finally { PasswordTextBox.Text = string.Empty; PasswordTextBox.Focus(); }
         }
@@ -619,7 +614,7 @@ namespace RBX_Alt_Manager
         {
             if (PasswordSelectionTB.Text.Length < 4)
             {
-                MessageBox.Show("Invalid password, your password must contain 4 or more characters", "Roblox Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                ModernDialog.Show("Invalid password, your password must contain 4 or more characters", "Roblox Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
@@ -631,7 +626,7 @@ namespace RBX_Alt_Manager
             {
                 LastHash = new ReadOnlyMemory<byte>(PasswordHash.ToArray());
                 PasswordSelectionTB.Text = string.Empty;
-                MessageBox.Show("Please confirm your password.", "Roblox Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Asterisk);
+                ModernDialog.Show("Please confirm your password.", "Roblox Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Asterisk);
             }
             else
             {
@@ -645,7 +640,7 @@ namespace RBX_Alt_Manager
                     LastHash = null;
                 }
                 else
-                    MessageBox.Show("You have entered the wrong password, please try again.", "Roblox Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    ModernDialog.Show("You have entered the wrong password, please try again.", "Roblox Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -737,35 +732,8 @@ namespace RBX_Alt_Manager
             return null;
         }
 
-        public static string ShowDialog(string text, string caption, string defaultText = "", bool big = false) // tbh pasted from stackoverflow
-        {
-            Form prompt = new Form()
-            {
-                Width = 340,
-                Height = big ? 420 : 125,
-                FormBorderStyle = FormBorderStyle.FixedDialog,
-                MaximizeBox = false,
-                Text = caption,
-                StartPosition = FormStartPosition.CenterScreen
-            };
-
-            Label textLabel = new Label() { Left = 15, Top = 10, Text = text, AutoSize = true };
-            Control textBox;
-            Button confirmation = new Button() { Text = "OK", Left = 15, Width = 100, Top = big ? 350 : 50, DialogResult = DialogResult.OK };
-
-            if (big) textBox = new RichTextBox() { Left = 15, Top = 15 + textLabel.Size.Height, Width = 295, Height = 330 - textLabel.Size.Height, Text = defaultText };
-            else textBox = new TextBox() { Left = 15, Top = 25, Width = 295, Text = defaultText };
-
-            confirmation.Click += (sender, e) => { prompt.Close(); };
-            prompt.Controls.Add(textBox);
-            prompt.Controls.Add(confirmation);
-            prompt.Controls.Add(textLabel);
-            if (!big) prompt.AcceptButton = confirmation;
-
-            prompt.Rescale();
-
-            return prompt.ShowDialog() == DialogResult.OK ? textBox.Text : "/UC";
-        }
+        public static string ShowDialog(string text, string caption, string defaultText = "", bool big = false) =>
+            ModernDialog.Prompt(text, caption, defaultText, big);
 
         private void AccountManager_Load(object sender, EventArgs e)
         {
@@ -871,7 +839,7 @@ namespace RBX_Alt_Manager
                                     //}
                                     //else
                                     //{
-                                    //    MessageBox.Show("You do not have the auto updater downloaded, go to the github page and download the latest release.");
+                                    //    ModernDialog.Show("You do not have the auto updater downloaded, go to the github page and download the latest release.");
                                     //    Process.Start("https://github.com/ic3w0lf22/Roblox-Account-Manager/releases");
                                     //}
                                 }
@@ -909,7 +877,7 @@ namespace RBX_Alt_Manager
                     AltManagerWS.Run();
                 }
             }
-            catch (Exception x) { MessageBox.Show($"Failed to start webserver!\n\n{x}", "Roblox Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+            catch (Exception x) { ModernDialog.Show($"Failed to start webserver!\n\n{x}", "Roblox Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Error); }
 
             Task.Run(() =>
             {
@@ -1336,7 +1304,7 @@ namespace RBX_Alt_Manager
         private void AccountManager_Shown(object sender, EventArgs e)
         {
             if (!UpdateMultiRoblox() && !General.Get<bool>("HideRbxAlert"))
-                MessageBox.Show("WARNING: Roblox is currently running, multi roblox will not work until you restart the account manager with roblox closed.", "Roblox Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                ModernDialog.Show("WARNING: Roblox is currently running, multi roblox will not work until you restart the account manager with roblox closed.", "Roblox Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Warning);
 
             int Major = Environment.OSVersion.Version.Major, Minor = Environment.OSVersion.Version.Minor;
 
@@ -1435,7 +1403,7 @@ namespace RBX_Alt_Manager
             }
 
             if (AccountControl.Get<bool>("StartOnLaunch"))
-                LaunchNexus_Click(null, EventArgs.Empty); // the old button lives hidden now, PerformClick would not fire
+                StartNexusQuietly(); // starts the account control server without opening its page
         }
 
         public bool UpdateMultiRoblox()
@@ -1464,7 +1432,7 @@ namespace RBX_Alt_Manager
         {
             if (AccountsView.SelectedObjects.Count > 1)
             {
-                DialogResult result = MessageBox.Show($"Are you sure you want to remove {AccountsView.SelectedObjects.Count} accounts?", "Remove Accounts", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+                DialogResult result = ModernDialog.Show($"Are you sure you want to remove {AccountsView.SelectedObjects.Count} accounts?", "Remove Accounts", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
 
                 if (result == DialogResult.Yes)
                 {
@@ -1478,7 +1446,7 @@ namespace RBX_Alt_Manager
             }
             else if (SelectedAccount != null)
             {
-                DialogResult result = MessageBox.Show($"Are you sure you want to remove {SelectedAccount.Username}?", "Remove Account", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+                DialogResult result = ModernDialog.Show($"Are you sure you want to remove {SelectedAccount.Username}?", "Remove Account", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
 
                 if (result == DialogResult.Yes)
                 {
@@ -1527,7 +1495,7 @@ namespace RBX_Alt_Manager
 
                     if (Utilities.YesNoPrompt($"An error was encountered attempting to login", "You may have a corrupted chromium installation", "Would you like to re-install chromium?", false))
                     {
-                        MessageBox.Show("Roblox Account Manager will now close since it can't delete the folder while it's in use.", "", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        ModernDialog.Show("Roblox Account Manager will now close since it can't delete the folder while it's in use.", "", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
                         if (Directory.GetFiles(AccountBrowser.Fetcher.DownloadsFolder).Length <= 1 && Directory.GetDirectories(AccountBrowser.Fetcher.DownloadsFolder).Length <= 1)
                             Process.Start("cmd.exe", $"/c rmdir /s /q \"{AccountBrowser.Fetcher.DownloadsFolder}\"");
@@ -1586,7 +1554,7 @@ namespace RBX_Alt_Manager
 
                 Dialog.Show();
             }
-            else if (MessageBox.Show($"{(PuppeteerSupported ? "Chromium" : "CefSharp")} is still downloading, you may have to wait a while before adding an account.\n\nNot working? You can choose to manually install by pressing \"Yes\"", "Roblox Account Manager", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Information) == DialogResult.Yes)
+            else if (ModernDialog.Show($"{(PuppeteerSupported ? "Chromium" : "CefSharp")} is still downloading, you may have to wait a while before adding an account.\n\nNot working? You can choose to manually install by pressing \"Yes\"", "Roblox Account Manager", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Information) == DialogResult.Yes)
                 ShowManualInstallInstructions();
         }
 
@@ -1707,7 +1675,7 @@ namespace RBX_Alt_Manager
                     string res = await SelectedAccount.JoinServer(PlaceId, VIPServer ? JobID.Text.Substring(4) : JobID.Text, false, VIPServer);
 
                     if (!res.Contains("Success"))
-                        MessageBox.Show(res);
+                        ModernDialog.Show(res);
                 }
             }).Start();
         }
@@ -1716,7 +1684,7 @@ namespace RBX_Alt_Manager
         {
             if (!GetUserID(UserID.Text, out long UserId, out var Response))
             {
-                MessageBox.Show($"[{Response.StatusCode} {Response.StatusDescription}] Failed to get UserId: {Response.Content}");
+                ModernDialog.Show($"[{Response.StatusCode} {Response.StatusDescription}] Failed to get UserId: {Response.Content}");
                 return;
             }
     
@@ -1736,28 +1704,16 @@ namespace RBX_Alt_Manager
                 string res = await SelectedAccount.JoinServer(UserId, "", true);
 
                 if (!res.Contains("Success"))
-                    MessageBox.Show(res);
+                    ModernDialog.Show(res);
             }
         }
 
         private void ServerList_Click(object sender, EventArgs e)
         {
             if (AccountsList.Count == 0 || LastValidAccount == null)
-                MessageBox.Show("Some features may not work unless there is a valid account", "Roblox Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                ModernDialog.Show("Some features may not work unless there is a valid account", "Servers", MessageBoxButtons.OK, MessageBoxIcon.Warning);
 
-            if (ServerListForm.Visible)
-            {
-                ServerListForm.WindowState = FormWindowState.Normal;
-                ServerListForm.BringToFront();
-            }
-            else
-                ServerListForm.Show();
-
-            ServerListForm.Busy = false; // incase it somehow bugs out
-
-            ServerListForm.StartPosition = FormStartPosition.Manual;
-            ServerListForm.Top = Top;
-            ServerListForm.Left = Right;
+            OpenPage("servers");
         }
 
         private void HideUsernamesCheckbox_CheckedChanged(object sender, EventArgs e)
@@ -1772,7 +1728,7 @@ namespace RBX_Alt_Manager
         {
             if (AccountsView.SelectedObjects.Count > 1)
             {
-                DialogResult result = MessageBox.Show($"Are you sure you want to remove {AccountsView.SelectedObjects.Count} accounts?", "Remove Accounts", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+                DialogResult result = ModernDialog.Show($"Are you sure you want to remove {AccountsView.SelectedObjects.Count} accounts?", "Remove Accounts", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
 
                 if (result == DialogResult.Yes)
                 {
@@ -1785,7 +1741,7 @@ namespace RBX_Alt_Manager
             }
             else if (SelectedAccount != null)
             {
-                DialogResult result = MessageBox.Show($"Are you sure you want to remove {SelectedAccount.Username}?", "Remove Account", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+                DialogResult result = ModernDialog.Show($"Are you sure you want to remove {SelectedAccount.Username}?", "Remove Account", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
 
                 if (result == DialogResult.Yes)
                 {
@@ -1815,18 +1771,7 @@ namespace RBX_Alt_Manager
             IniSettings.Save("RAMSettings.ini");
         }
 
-        private void BrowserButton_Click(object sender, EventArgs e)
-        {
-            if (SelectedAccount == null)
-            {
-                MessageBox.Show("No Account Selected!");
-                return;
-            }
-
-            UtilsForm.Show();
-            UtilsForm.WindowState = FormWindowState.Normal;
-            UtilsForm.BringToFront();
-        }
+        private void BrowserButton_Click(object sender, EventArgs e) => OpenPage("tools");
 
         private void getAuthenticationTicketToolStripMenuItem_Click(object sender, EventArgs e)
         {
@@ -2076,7 +2021,7 @@ namespace RBX_Alt_Manager
                     if (account.Fields.ContainsKey("SavedPlaceId") || account.Fields.ContainsKey("SavedJobId"))
                         HasSaved.Add(account);
 
-                if (HasSaved.Count > 0 && MessageBox.Show($"Are you sure you want to remove {HasSaved.Count} saved Place Ids?", "Roblox Account Manager", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.OK)
+                if (HasSaved.Count > 0 && ModernDialog.Show($"Are you sure you want to remove {HasSaved.Count} saved Place Ids?", "Roblox Account Manager", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.OK)
                     foreach (Account account in HasSaved)
                     {
                         account.RemoveField("SavedPlaceId");
@@ -2133,7 +2078,7 @@ namespace RBX_Alt_Manager
 
         private void sortAlphabeticallyToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            DialogResult result = MessageBox.Show($"Are you sure you want to sort every account alphabetically?", "Roblox Account Manager", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+            DialogResult result = ModernDialog.Show($"Are you sure you want to sort every account alphabetically?", "Roblox Account Manager", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
 
             if (result == DialogResult.Yes)
             {
@@ -2156,7 +2101,7 @@ namespace RBX_Alt_Manager
 
             string Code = ShowDialog("Code", "Quick Log In");
 
-            if (Code.Length != 6) { MessageBox.Show("Quick Log In codes requires 6 characters", "Quick Log In", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+            if (Code.Length != 6) { ModernDialog.Show("Quick Log In codes requires 6 characters", "Quick Log In", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
 
             await SelectedAccount.QuickLogIn(Code);
         }
@@ -2181,26 +2126,23 @@ namespace RBX_Alt_Manager
             ThemeForm.Show();
         }
 
+        private void StartNexusQuietly()
+        {
+            if (ControlForm != null) return;
+
+            ControlForm = new AccountControl();
+            ControlForm.ApplyTheme();
+        }
+
         private void LaunchNexus_Click(object sender, EventArgs e)
         {
-            if (ControlForm != null)
+            if (ControlForm == null)
             {
-                ControlForm.Top = Bottom;
-                ControlForm.Left = Left;
-                ControlForm.Show();
-                ControlForm.BringToFront();
-            }
-            else
-            {
-                ControlForm = new AccountControl
-                {
-                    StartPosition = FormStartPosition.Manual,
-                    Top = Bottom,
-                    Left = Left
-                };
-                ControlForm.Show();
+                ControlForm = new AccountControl();
                 ControlForm.ApplyTheme();
             }
+
+            OpenPage("control");
         }
 
         private async Task LaunchAccounts(List<Account> Accounts, long PlaceID, string JobID, bool FollowUser = false, bool VIPServer = false)
@@ -2250,30 +2192,15 @@ namespace RBX_Alt_Manager
         }
 
         private void infoToolStripMenuItem1_Click(object sender, EventArgs e) =>
-            MessageBox.Show("Roblox Account Manager created by ic3w0lf under the GNU GPLv3 license.", "Roblox Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            ModernDialog.Show("Roblox Account Manager created by ic3w0lf under the GNU GPLv3 license.", "Roblox Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
         private void groupsToolStripMenuItem_Click(object sender, EventArgs e) =>
-            MessageBox.Show("Groups can be sorted by naming them a number then whatever you want.\nFor example: You can put Group Apple on top by naming it '001 Apple' or '1Apple'.\nThe numbers will be hidden from the name but will be correctly sorted depending on the number.\nAccounts can also be dragged into groups.", "Roblox Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            ModernDialog.Show("Groups can be sorted by naming them a number then whatever you want.\nFor example: You can put Group Apple on top by naming it '001 Apple' or '1Apple'.\nThe numbers will be hidden from the name but will be correctly sorted depending on the number.\nAccounts can also be dragged into groups.", "Roblox Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
         private void DonateButton_Click(object sender, EventArgs e) =>
             Process.Start("https://ic3w0lf22.github.io/donate.html");
 
-        private void ConfigButton_Click(object sender, EventArgs e)
-        {
-            SettingsForm ??= new SettingsForm();
-
-            if (SettingsForm.Visible)
-            {
-                SettingsForm.WindowState = FormWindowState.Normal;
-                SettingsForm.BringToFront();
-            }
-            else
-                SettingsForm.Show();
-
-            SettingsForm.StartPosition = FormStartPosition.Manual;
-            SettingsForm.Top = Top;
-            SettingsForm.Left = Right;
-        }
+        private void ConfigButton_Click(object sender, EventArgs e) => OpenPage("settings");
 
         private void HistoryIcon_MouseHover(object sender, EventArgs e) => RGForm.ShowForm();
 
