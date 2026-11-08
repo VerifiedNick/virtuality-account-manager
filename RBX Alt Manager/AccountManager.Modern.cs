@@ -887,7 +887,7 @@ namespace RBX_Alt_Manager
         #region Same server
 
         /// <summary>Settings → Joining: when no Job ID is given, every account joins the server of the first one.</summary>
-        private bool SameServerOn => !General.Exists("SameServer") || General.Get<bool>("SameServer");
+        private bool SameServerOn => General.Get<bool>("SameServer"); // default OFF: each account joins normally, like Roblox wants
 
         /// <summary>
         /// Waits until the account is in the game and returns its server (Job ID). The Job ID field is filled with it,
@@ -951,10 +951,10 @@ namespace RBX_Alt_Manager
         {
             var Busy = new List<(Account A, string Why)>();
 
-            if (General.Exists("ConfirmDoubleJoin") && !General.Get<bool>("ConfirmDoubleJoin"))
+            if (!General.Get<bool>("ConfirmDoubleJoin")) // default OFF: never ask, just join (turn on in Settings → Joining)
             {
                 foreach (var A in Accounts) MarkJoined(A);
-                return Accounts; // switched off in Settings → Joining
+                return Accounts;
             }
 
             foreach (var A in Accounts)

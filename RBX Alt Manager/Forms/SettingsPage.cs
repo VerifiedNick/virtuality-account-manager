@@ -118,11 +118,11 @@ namespace RBX_Alt_Manager.Forms
 
             Refreshers.Add(() => Delay.Enabled = !General.Get<bool>("AsyncJoin"));
 
-            Toggle(S, "All accounts join the same server", "If the Job ID field is empty, the first account picks a server and every other account joins exactly that one. The Job ID field keeps it for the next joins – clear it for a new server.",
-                () => !General.Exists("SameServer") || General.Get<bool>("SameServer"), V => { General.Set("SameServer", Bool(V)); Save(); });
+            Toggle(S, "All accounts join the same server", "Off by default – every account joins normally, exactly like Roblox does it. Turn on only if you want them bundled: then, with an empty Job ID, the first account picks a server and the others follow it.",
+                () => General.Get<bool>("SameServer"), V => { General.Set("SameServer", Bool(V)); Save(); });
 
-            Toggle(S, "Ask before joining twice", "Only for the same account: if it is already in a game or was started in the last 2 minutes, you get a question first (joining again would close its open Roblox window). Different accounts in several windows are never affected.",
-                () => !General.Exists("ConfirmDoubleJoin") || General.Get<bool>("ConfirmDoubleJoin"), V => { General.Set("ConfirmDoubleJoin", Bool(V)); Save(); });
+            Toggle(S, "Ask before joining twice", "Off by default – joining just works, no questions. Turn on if you want a warning when the same account is already in a game or was started in the last 2 minutes (joining it again closes its open window). Different accounts in several windows are never affected.",
+                () => General.Get<bool>("ConfirmDoubleJoin"), V => { General.Set("ConfirmDoubleJoin", Bool(V)); Save(); });
 
             Toggle(S, "Shuffle picks the emptiest server", "The shuffle button next to Job ID joins the server with the fewest players.",
                 () => General.Get<bool>("ShuffleChoosesLowestServer"), V => { General.Set("ShuffleChoosesLowestServer", Bool(V)); Save(); });
