@@ -23,7 +23,7 @@ namespace RBX_Alt_Manager.Classes
     public static class AppUpdate
     {
         /// <summary>Raise this by one for every released build; must match Download/version.txt in the repo.</summary>
-        public const int BuildNumber = 7;
+        public const int BuildNumber = 8;
 
         private const string Base = "https://raw.githubusercontent.com/VerifiedNick/virtuality-manager/main/Download/";
         private const string VersionUrl = Base + "version.txt";
@@ -70,7 +70,7 @@ namespace RBX_Alt_Manager.Classes
             {
                 using (var WC = Web())
                 {
-                    string Text = WC.DownloadString(VersionUrl);
+                    string Text = WC.DownloadString(VersionUrl + "?t=" + DateTime.UtcNow.Ticks); // the number makes GitHub's cache hand out the newest file, not one from a few minutes ago
                     string Digits = new string((Text ?? string.Empty).Trim().TakeWhile(char.IsDigit).ToArray());
                     return int.TryParse(Digits, out int N) ? N : -1;
                 }
@@ -85,7 +85,7 @@ namespace RBX_Alt_Manager.Classes
             Directory.CreateDirectory(Staging);
             string NewExe = Path.Combine(Staging, "Virtuality Manager.exe");
 
-            using (var WC = Web()) WC.DownloadFile(ExeUrl, NewExe);
+            using (var WC = Web()) WC.DownloadFile(ExeUrl + "?t=" + DateTime.UtcNow.Ticks, NewExe);
 
             // make sure we really downloaded a Windows program, not an error page
             var Bytes = File.ReadAllBytes(NewExe);
