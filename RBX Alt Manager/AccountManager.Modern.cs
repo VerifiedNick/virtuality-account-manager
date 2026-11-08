@@ -126,25 +126,31 @@ namespace RBX_Alt_Manager
                 int CX = X, CY = H / 2 + Px(2), CH = Px(16);
                 Font F = Modern.Font(8.25f);
 
-                void Stat(int Count, string Label, Color C)
+                var Stats = new List<(int Count, string Long, string Short, Color C)>
                 {
-                    if (Count <= 0 || CX > X + W) return;
+                    (InGame, "in game", "in game", Modern.Online),
+                    (Online, "online", "online", Modern.Text2),
+                    (Login, "logged out", "out", Modern.Warn),
+                    (Banned, "banned", "banned", Modern.Danger),
+                };
+
+                int Need(bool Short) => Stats.Where(t => t.Count > 0).Sum(t => Px(7) + Px(5) + TextRenderer.MeasureText($"{t.Count} {(Short ? t.Short : t.Long)}", F, Size.Empty, TextFormatFlags.NoPadding).Width + Px(10)) - Px(10);
+                bool UseShort = Need(false) > W; // narrow: "161 out" instead of "161 logged out", nothing gets cut off
+
+                foreach (var (Count, Long, Short, C) in Stats)
+                {
+                    if (Count <= 0 || CX > X + W) continue;
 
                     int Dot = Px(7);
                     using (var B = new SolidBrush(C)) G.FillRectangle(B, CX, CY + (CH - Dot) / 2, Dot, Dot);
 
-                    string T = $"{Count} {Label}";
+                    string T = $"{Count} {(UseShort ? Short : Long)}";
                     int TW = TextRenderer.MeasureText(T, F, Size.Empty, TextFormatFlags.NoPadding).Width;
                     Modern.Text_(G, T, F, new Rectangle(CX + Dot + Px(5), CY, Math.Min(TW + Px(2), X + W - CX), CH), Modern.Sub, TextFormatFlags.NoPadding);
                     CX += Dot + Px(5) + TW + Px(10);
                 }
 
-                Stat(InGame, "in game", Modern.Online);
-                Stat(Online, "online", Modern.Text2);
-                Stat(Login, "logged out", Modern.Warn);
-                Stat(Banned, "banned", Modern.Danger);
-
-                if (Online + Login + Banned == 0)
+                if (InGame + Online + Login + Banned == 0)
                     Modern.Text_(G, "all offline", F, new Rectangle(X, CY, W, CH), Modern.Sub, TextFormatFlags.NoPadding);
             };
 
