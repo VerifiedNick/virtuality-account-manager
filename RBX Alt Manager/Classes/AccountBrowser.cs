@@ -321,20 +321,43 @@ namespace RBX_Alt_Manager.Classes
 
         private async void Page_RequestFinished(object sender, RequestEventArgs e)
         {
-            Uri Url = new Uri(e.Request.Url);
-
-            if (e.Request.Response.Status == HttpStatusCode.OK && e.Request.Method == HttpMethod.Post && Url.Host == "auth.roblox.com")
+            try
             {
-                if ((Url.AbsolutePath == "/v2/login" || Url.AbsolutePath == "/v2/signup") && e.Request.PostData != null && Utilities.TryParseJson((string)e.Request.PostData, out JObject LoginData))
-                {
-                    if (LoginData?["password"]?.Value<string>() is string password && !string.IsNullOrEmpty(password) && LoginData?["ctype"].Value<string>() is string loginType && loginType.ToLowerInvariant() == "username")
-                        Password = password;
+                Uri Url = new Uri(e.Request.Url);
 
-                    if ((await page.GetCookiesAsync("https://roblox.com/")).FirstOrDefault(Cookie => Cookie.Name == ".ROBLOSECURITY") is CookieParam Cookie)
-                        await AddAccount(Cookie);
+                if (e.Request.Response.Status == HttpStatusCode.OK && e.Request.Method == HttpMethod.Post && Url.Host == "auth.roblox.com")
+                {
+                    bool IsSignup = Url.AbsolutePath == "/v2/signup";
+
+                    if ((Url.AbsolutePath == "/v2/login" || IsSignup) && e.Request.PostData != null && Utilities.TryParseJson((string)e.Request.PostData, out JObject LoginData))
+                    {
+                        // a sign up request has no "ctype" field, so it must not be required (that used to throw and the new account was never added)
+                        string ctype = LoginData?["ctype"]?.Value<string>();
+
+                        if (LoginData?["password"]?.Value<string>() is string password && !string.IsNullOrEmpty(password) && (IsSignup || ctype?.ToLowerInvariant() == "username"))
+                            Password = password;
+
+                        await AddAccountWhenCookieReady();
+                    }
+                    else if (Regex.IsMatch(Url.AbsolutePath, "/users/[0-9]+/two-step-verification/login"))
+                        await AddAccountWhenCookieReady();
                 }
-                else if (Regex.IsMatch(Url.AbsolutePath, "/users/[0-9]+/two-step-verification/login") && (await page.GetCookiesAsync("https://roblox.com/")).FirstOrDefault(Cookie => Cookie.Name == ".ROBLOSECURITY") is CookieParam Cookie)
+            }
+            catch (Exception x) { Program.Logger.Warn($"[AccountBrowser] {x.Message}"); }
+        }
+
+        /// <summary>The login cookie can show up a moment after the request finished (especially after a sign up), so try a few times.</summary>
+        private async Task AddAccountWhenCookieReady()
+        {
+            for (int Try = 0; Try < 20 && !AccountAdded; Try++)
+            {
+                if ((await page.GetCookiesAsync("https://roblox.com/")).FirstOrDefault(Cookie => Cookie.Name == ".ROBLOSECURITY") is CookieParam Cookie)
+                {
                     await AddAccount(Cookie);
+                    return;
+                }
+
+                await Task.Delay(500);
             }
         }
 
