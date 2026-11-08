@@ -28,6 +28,9 @@ namespace RBX_Alt_Manager.Classes
 
         // drag selection (rubber band): starts on empty space, or anywhere while Ctrl is held
         private bool DragArmed, Dragging;
+        private bool CardDragArmed;
+        private Point CardDragStart;
+        private List<Account> CardDragAccounts;
         private Point DragStart;                  // content coordinates (unscrolled)
         private Point DragNow;
         private HashSet<Account> DragBase;
@@ -494,6 +497,21 @@ namespace RBX_Alt_Manager.Classes
         {
             base.OnMouseMove(e);
 
+            if (CardDragArmed && e.Button == MouseButtons.Left)
+            {
+                if (Math.Abs(e.X - CardDragStart.X) > Modern.Px(5) || Math.Abs(e.Y - CardDragStart.Y) > Modern.Px(5))
+                {
+                    CardDragArmed = false;
+                    var Accounts = CardDragAccounts;
+                    CardDragAccounts = null;
+
+                    if (Accounts != null && Accounts.Count > 0)
+                        DoDragDrop(new AccountDragData(Accounts), DragDropEffects.Move);
+                }
+
+                return;
+            }
+
             if (DragArmed && e.Button == MouseButtons.Left)
             {
                 Point Content = new Point(e.X - AutoScrollPosition.X, e.Y - AutoScrollPosition.Y);
@@ -539,6 +557,8 @@ namespace RBX_Alt_Manager.Classes
             var Selected = GetSelection();
 
             DragArmed = Dragging = false;
+            CardDragArmed = false;
+            CardDragAccounts = null;
             PendingToggle = null;
             PendingClear = false;
 
@@ -599,8 +619,15 @@ namespace RBX_Alt_Manager.Classes
             }
             else
             {
-                SetSelection(new List<Account> { A });
+                // dragging an already-selected card moves the whole selection; otherwise just this one
+                bool KeepMultiSelection = Selected.Count > 1 && Selected.Contains(A);
+
+                if (!KeepMultiSelection) SetSelection(new List<Account> { A });
                 SelectionAnchor = A;
+
+                CardDragAccounts = KeepMultiSelection ? Selected.ToList() : new List<Account> { A };
+                CardDragStart = e.Location;
+                CardDragArmed = true;
             }
         }
 
@@ -627,6 +654,8 @@ namespace RBX_Alt_Manager.Classes
             bool WasDragging = Dragging;
 
             DragArmed = Dragging = false;
+            CardDragArmed = false;
+            CardDragAccounts = null;
             PendingToggle = null;
             PendingClear = false;
 

@@ -43,6 +43,9 @@ namespace RBX_Alt_Manager
         private readonly System.Windows.Forms.Timer CardPresenceTimer = new System.Windows.Forms.Timer() { Interval = 60000 };
         private ModernLabel GroupsCaption, GroupTitleLabel, GroupSubLabel, TipLabel;
         private AccountCardPanel AccountCard;
+        private const int AccountCardWidth = 356;
+        private readonly System.Windows.Forms.Timer AccountCardAnim = new System.Windows.Forms.Timer() { Interval = 15 };
+        private bool AccountCardOpen;
         private ContextMenuStrip MoreToolsMenu;
         private ToolStripMenuItem HideUsernamesMenuItem;
         private OLVColumn StatusColumn;
@@ -84,7 +87,8 @@ namespace RBX_Alt_Manager
             HeaderBar = new LinePanel() { Dock = DockStyle.Top, Height = 64, BackColor = Modern.Panel, Lines = AnchorStyles.Bottom };
             SideBar = new LinePanel() { Dock = DockStyle.Left, Width = 266, BackColor = Modern.Panel, Lines = AnchorStyles.Right };
             CenterPane = new LinePanel() { Dock = DockStyle.Fill, BackColor = Modern.Bg };
-            AccountCard = new AccountCardPanel() { Dock = DockStyle.Right, Width = 356 };
+            AccountCard = new AccountCardPanel() { Dock = DockStyle.Right, Width = 0, Visible = false };
+            AccountCardAnim.Tick += AccountCardAnim_Tick;
 
             // docking happens in reverse order: header first, then the sides, the list takes the rest
             Shell.Controls.Add(CenterPane);
@@ -541,7 +545,7 @@ namespace RBX_Alt_Manager
             MoreToolsMenu.Items.Add("Quick Log In…", null, (s, e) => quickLogInToolStripMenuItem_Click(null, EventArgs.Empty));
             MoreToolsMenu.Items.Add("Copy username:password", null, (s, e) => copyUserPassComboToolStripMenuItem_Click(null, EventArgs.Empty));
             MoreToolsMenu.Items.Add("Copy profile link", null, (s, e) => copyProfileToolStripMenuItem_Click(null, EventArgs.Empty));
-            MoreToolsMenu.Items.Add("Move to group…", null, (s, e) => moveToToolStripMenuItem_Click(null, EventArgs.Empty));
+            MoreToolsMenu.Items.Add("Move to group…", null, (s, e) => ShowMoveToGroupMenu());
             MoreToolsMenu.Items.Add("Dump details", null, (s, e) => ShowDetailsToolStripMenuItem_Click(null, EventArgs.Empty));
             MoreToolsMenu.Items.Add(new ToolStripSeparator());
 
@@ -605,6 +609,15 @@ namespace RBX_Alt_Manager
             AccountsView.HeaderFormatStyle = Header;
 
             GroupsSidebar.BackColor = Modern.Panel;
+
+            AccountsStrip.Items.Insert(Math.Min(5, AccountsStrip.Items.Count), new ToolStripMenuItem("Move to group…", null, (s, e) => ShowMoveToGroupMenu()));
+
+            GroupsSidebar.AccountsDropped += (s, e) =>
+            {
+                foreach (var A in e.Accounts) A.Group = e.Key;
+                RefreshView();
+                SaveAccounts();
+            };
 
             foreach (var Strip in new ToolStrip[] { MoreToolsMenu, AccountsStrip, OpenBrowserStrip, AddAccountsStrip })
                 StyleMenu(Strip);
@@ -1073,7 +1086,34 @@ namespace RBX_Alt_Manager
         {
             if (AccountCard == null) return;
 
-            AccountCard.SetAccounts(AccountsView.SelectedObjects.Cast<object>().OfType<Account>());
+            var Selected = AccountsView.SelectedObjects.Cast<object>().OfType<Account>().ToList();
+
+            AccountCard.SetAccounts(Selected);
+
+            // nothing selected: the panel is not shown at all, instead of a "no account selected" placeholder; it slides in once something is picked
+            bool ShouldBeOpen = Selected.Count > 0;
+
+            if (ShouldBeOpen == AccountCardOpen) return;
+
+            AccountCardOpen = ShouldBeOpen;
+            if (AccountCardOpen) AccountCard.Visible = true; // becomes invisible again only once the close animation reaches 0
+            AccountCardAnim.Start();
+        }
+
+        private void AccountCardAnim_Tick(object sender, EventArgs e)
+        {
+            if (AccountCard == null) { AccountCardAnim.Stop(); return; }
+
+            int Target = AccountCardOpen ? AccountCardWidth : 0;
+            int Remaining = Target - AccountCard.Width;
+
+            if (Remaining == 0) { AccountCardAnim.Stop(); if (!AccountCardOpen) AccountCard.Visible = false; return; }
+
+            int Step = (int)Math.Ceiling(Math.Abs(Remaining) * 0.35);
+            if (Step < 1) Step = 1;
+            if (Step > Math.Abs(Remaining)) Step = Math.Abs(Remaining);
+
+            AccountCard.Width += Math.Sign(Remaining) * Step;
         }
 
         #endregion
@@ -1321,6 +1361,44 @@ namespace RBX_Alt_Manager
             Grid.Invalidate();
             AccountCard.JoinTarget = JoinTargetName;
             AccountCard.Invalidate();
+        }
+
+        /// <summary>Menu to move the selected accounts into an existing group, or a brand new one – instead of a free-text field that silently creates near-duplicates on a typo.</summary>
+        private void ShowMoveToGroupMenu()
+        {
+            var Selected = AccountsView.SelectedObjects.Cast<object>().OfType<Account>().ToList();
+            if (Selected.Count == 0) return;
+
+            string CurrentGroup = Selected.Count == 1 ? (Selected[0].Group ?? string.Empty) : null;
+
+            var Menu = new ContextMenuStrip();
+            Menu.Items.Add(new ToolStripMenuItem("Move to:") { Enabled = false });
+            Menu.Items.Add(new ToolStripSeparator());
+
+            foreach (string Key in AccountsList.Where(a => !string.IsNullOrEmpty(a.Username)).Select(a => a.Group ?? string.Empty).Distinct().OrderBy(k => GroupTitleOf(k), StringComparer.OrdinalIgnoreCase))
+            {
+                int Count = AccountsList.Count(a => (a.Group ?? string.Empty) == Key);
+                var Item = new ToolStripMenuItem($"{GroupTitleOf(Key)}   ({Count})") { Checked = CurrentGroup != null && string.Equals(Key, CurrentGroup, StringComparison.OrdinalIgnoreCase) };
+                Item.Click += (s, e) => { foreach (var A in Selected) A.Group = Key; RefreshView(); SaveAccounts(); };
+                Menu.Items.Add(Item);
+            }
+
+            Menu.Items.Add(new ToolStripSeparator());
+            var NewGroup = new ToolStripMenuItem("New group…");
+            NewGroup.Click += (s, e) =>
+            {
+                string Name = ShowDialog("New group name", "Move to group", string.Empty);
+                if (Name == "/UC" || string.IsNullOrWhiteSpace(Name)) return;
+
+                foreach (var A in Selected) A.Group = Name.Trim();
+                RefreshView();
+                SaveAccounts();
+            };
+            Menu.Items.Add(NewGroup);
+
+            ModernSkin.StyleMenu(Menu);
+            Menu.Closed += (s, e) => BeginInvoke(new Action(Menu.Dispose));
+            Menu.Show(Cursor.Position);
         }
 
         /// <summary>Menu to choose the join target: the main account, any account by group, or any Roblox user by name.</summary>

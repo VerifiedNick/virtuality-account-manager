@@ -40,8 +40,12 @@ namespace RBX_Alt_Manager.Classes
         public event EventHandler<GroupSidebarEventArgs> GroupDoubleClicked;
         public event EventHandler<GroupSidebarEventArgs> GroupRightClicked;
 
+        /// <summary>Accounts were dropped onto a group (dragged from the account grid). Null Key = dropped on "All accounts", not a real group.</summary>
+        public event EventHandler<(List<Account> Accounts, string Key)> AccountsDropped;
+
         private readonly List<GroupSidebarItem> Items = new List<GroupSidebarItem>();
         private int HoverIndex = -1;
+        private int DropHoverIndex = -1;
         private string ActiveKey;
         private bool HasActive;
         private Font TitleFont, CountFont, InitialsFont;
@@ -59,6 +63,7 @@ namespace RBX_Alt_Manager.Classes
             DoubleBuffered = true;
             ResizeRedraw = true;
             AutoScroll = true;
+            AllowDrop = true;
             Tag = "NoScaling"; // fonts are created at the right size by this control itself
             SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.Selectable, true);
         }
@@ -180,6 +185,10 @@ namespace RBX_Alt_Manager.Classes
                     using (var Bar = new SolidBrush(Accent))
                         G.FillRectangle(Bar, R.X, R.Y, (int)(3 * S), R.Height);
 
+                if (i == DropHoverIndex)
+                    using (var Pen = new Pen(Accent, 2f * S) { DashStyle = DashStyle.Dash })
+                        G.DrawRectangle(Pen, R.X + 1, R.Y + 1, R.Width - 2, R.Height - 2);
+
                 int IconSize = R.Height - (int)(14 * S);
                 Rectangle IconR = new Rectangle(R.X + (int)(10 * S), R.Y + (R.Height - IconSize) / 2, IconSize, IconSize);
 
@@ -256,6 +265,43 @@ namespace RBX_Alt_Manager.Classes
         {
             base.OnMouseDown(e);
             Focus(); // so the mouse wheel scrolls the sidebar
+        }
+
+        protected override void OnDragEnter(DragEventArgs e) => OnDragOver(e);
+
+        protected override void OnDragOver(DragEventArgs e)
+        {
+            base.OnDragOver(e);
+
+            int Index = e.Data.GetDataPresent(typeof(AccountDragData)) ? HitTest(PointToClient(new Point(e.X, e.Y))) : -1;
+
+            // dropping on "All accounts" (Key == null) is not a real group, so it is not a valid target
+            if (Index >= 0 && Items[Index].Key == null) Index = -1;
+
+            e.Effect = Index >= 0 ? DragDropEffects.Move : DragDropEffects.None;
+
+            if (Index != DropHoverIndex) { DropHoverIndex = Index; Invalidate(); }
+        }
+
+        protected override void OnDragLeave(EventArgs e)
+        {
+            base.OnDragLeave(e);
+            DropHoverIndex = -1;
+            Invalidate();
+        }
+
+        protected override void OnDragDrop(DragEventArgs e)
+        {
+            base.OnDragDrop(e);
+
+            int Index = DropHoverIndex;
+            DropHoverIndex = -1;
+            Invalidate();
+
+            if (Index < 0 || Index >= Items.Count || Items[Index].Key == null) return;
+            if (!(e.Data.GetData(typeof(AccountDragData)) is AccountDragData Data) || Data.Accounts.Count == 0) return;
+
+            AccountsDropped?.Invoke(this, (Data.Accounts, Items[Index].Key));
         }
 
         protected override void OnMouseClick(MouseEventArgs e)
