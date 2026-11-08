@@ -108,6 +108,10 @@ namespace RBX_Alt_Manager.Classes
 
             if (LoginBusy_) Login.Text = "Login window open…";
 
+            // purple only when a login is really needed; for a logged-in account it is a normal button
+            bool NeedsLogin = Multi ? Accounts.Any(a => AccountRowRenderer.StateOf(a) == AccountState.NeedsLogin) : (Single != null && AccountRowRenderer.StateOf(Single) == AccountState.NeedsLogin);
+            Login.Style = NeedsLogin ? ModernButtonStyle.Primary : ModernButtonStyle.Secondary;
+
             List.Visible = Multi;
             List.SetAccounts(Multi ? Accounts : new List<Account>());
             OpenBrowser.Enabled = Follow.Enabled = EditNote.Enabled = Remove.Enabled = Any;

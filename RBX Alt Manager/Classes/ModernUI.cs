@@ -336,6 +336,25 @@ namespace RBX_Alt_Manager.Classes
         public float TextPoints { get; set; } = 9.25f;
         public bool Bold { get; set; } = true;
 
+        /// <summary>Narrow windows: the button shows ShortText (or only its icon) instead of the full label.</summary>
+        public string ShortText { get; set; }
+        public string FullText { get; set; }
+        public bool Compact { get; set; }
+        public bool IconOnly { get; set; }
+
+        public string Shown => IconOnly && Icon != IconKind.None ? string.Empty : (Compact && ShortText != null && (FullText == null || base.Text == FullText) ? ShortText : base.Text);
+
+        /// <summary>Width the button needs for what it currently shows.</summary>
+        public int NeededWidth()
+        {
+            string T = Shown;
+            int W = Modern.Px(28);
+            if (Icon != IconKind.None) W += Modern.Px(T.Length > 0 ? 24 : 0) + (T.Length == 0 ? Modern.Px(10) : 0);
+            if (T.Length > 0) W += TextRenderer.MeasureText(T, Modern.Font(TextPoints, FontStyle.Regular, Bold), Size.Empty, TextFormatFlags.NoPadding).Width;
+            if (Menu != null) W += Modern.Px(22);
+            return W;
+        }
+
         /// <summary>Shows that the page of this button is open (header icons).</summary>
         private bool Active_;
         public bool Active { get => Active_; set { if (Active_ == value) return; Active_ = value; Invalidate(); } }
@@ -382,6 +401,7 @@ namespace RBX_Alt_Manager.Classes
             Modern.Prepare(G);
 
             Color Parent_ = Parent?.BackColor ?? Modern.Bg;
+            string Text = Shown;
             Color Fill, Border, Fore;
 
             switch (Style)

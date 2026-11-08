@@ -141,7 +141,7 @@ namespace RBX_Alt_Manager
 
                 Stat(InGame, "in game", Modern.Online);
                 Stat(Online, "online", Modern.Text2);
-                Stat(Login, "login", Modern.Warn);
+                Stat(Login, "logged out", Modern.Warn);
                 Stat(Banned, "banned", Modern.Danger);
 
                 if (Online + Login + Banned == 0)
@@ -283,22 +283,22 @@ namespace RBX_Alt_Manager
         {
             GroupTitleLabel = new ModernLabel() { Text = "All accounts", Points = 15f, Bold = true };
             GroupSubLabel = new ModernLabel() { Points = 9f, Color = Modern.Sub };
-            TipLabel = new ModernLabel() { Text = "Ctrl / Shift + click selects several accounts – the buttons on the right then work for all of them. Right click a card for every other option.", Points = 8.25f, Color = Modern.Sub };
+            TipLabel = new ModernLabel() { Text = "Select several: Ctrl / Shift + click or drag a frame  ·  Right click a card for more", Points = 8.25f, Color = Modern.Sub };
 
             LoginGroupButton = new ModernButton() { Text = "Log in group", Icon = IconKind.Login, Style = ModernButtonStyle.Outline, Visible = false };
             LoginGroupButton.Click += (s, e) => LoginGroupQueue();
             SaveTooltip.SetToolTip(LoginGroupButton, "Logs in every logged-out account of this group, one after another with a pause.\nYou only solve the captcha. Click again to stop.");
 
-            CheckBansButton = new ModernButton() { Text = "Check for bans", Icon = IconKind.Ban, Style = ModernButtonStyle.Danger };
+            CheckBansButton = new ModernButton() { Text = "Check for bans", FullText = "Check for bans", ShortText = "Bans", Icon = IconKind.Ban, Style = ModernButtonStyle.Danger };
             CheckBansButton.Click += (s, e) => CheckForBans();
             SaveTooltip.SetToolTip(CheckBansButton, "Checks every account with the Roblox API and marks banned ones red.\nNothing is deleted or moved.");
 
-            SelectGroupButton = new ModernButton() { Text = "Select group" };
+            SelectGroupButton = new ModernButton() { Text = "Select group", FullText = "Select group", ShortText = "Select" };
             SelectGroupButton.Click += (s, e) => SelectAllVisible();
 
             CardView = General == null || !General.Exists("MainView") || General.Get("MainView") != "List";
 
-            ViewToggleButton = new ModernButton() { Text = CardView ? "List view" : "Card view" };
+            ViewToggleButton = new ModernButton() { Text = CardView ? "List view" : "Card view", FullText = CardView ? "List view" : "Card view", ShortText = CardView ? "List" : "Cards" };
             ViewToggleButton.Click += (s, e) => SetCardView(!CardView);
             SaveTooltip.SetToolTip(ViewToggleButton, "Switch between account cards and the classic list (the list shows more accounts at once and can be sorted by clicking a column)");
 
@@ -338,21 +338,38 @@ namespace RBX_Alt_Manager
 
                 int P = Modern.Gutter, W = CenterPane.Width - P * 2, RH = Modern.RowH, Gap = Px(8);
 
-                ViewToggleButton.SetBounds(P + W - Px(100), P, Px(100), RH);
-                SelectGroupButton.SetBounds(ViewToggleButton.Left - Gap - Px(116), P, Px(116), RH);
-                CheckBansButton.SetBounds(SelectGroupButton.Left - Gap - Px(170), P, Px(170), RH);
+                // buttons from the right; when the group name would get too little room they get shorter labels, then icons only
+                var Row = new List<ModernButton>();
+                if (LoginGroupButton.Visible) Row.Add(LoginGroupButton);
+                Row.AddRange(new[] { CheckBansButton, SelectGroupButton, ViewToggleButton });
 
-                int TitleRight = CheckBansButton.Left;
+                int TitleRight = 0;
 
-                if (LoginGroupButton.Visible)
+                for (int Mode = 0; Mode < 3; Mode++)
                 {
-                    int LW = Math.Max(Px(170), TextRenderer.MeasureText(LoginGroupButton.Text, Modern.Font(9.25f, FontStyle.Regular, true)).Width + Px(52));
-                    LoginGroupButton.SetBounds(CheckBansButton.Left - Gap - LW, P, LW, RH);
-                    TitleRight = LoginGroupButton.Left;
+                    foreach (var B in Row)
+                    {
+                        B.Compact = Mode >= 1;
+                        B.IconOnly = Mode >= 2 && B.Icon != IconKind.None;
+                    }
+
+                    int X = P + W;
+                    foreach (var B in Row.AsEnumerable().Reverse())
+                    {
+                        int BW = Math.Max(Mode == 0 ? Px(100) : Px(RH), B.NeededWidth());
+                        X -= BW;
+                        B.SetBounds(X, P, BW, RH);
+                        X -= Gap;
+                    }
+
+                    TitleRight = X;
+                    if (TitleRight - P >= Px(Mode == 0 ? 260 : 200)) break;
                 }
 
-                // title + subtitle share the height of the button row
-                GroupTitleLabel.SetBounds(P, P - Px(4), Math.Max(Px(80), TitleRight - P - Px(10)), Px(28));
+                foreach (var B in Row) B.Invalidate();
+
+                // title + subtitle share the height of the button row; never under the buttons
+                GroupTitleLabel.SetBounds(P, P - Px(4), Math.Max(Px(40), TitleRight - P - Px(6)), Px(28));
                 GroupSubLabel.SetBounds(P, P + RH - Px(16), GroupTitleLabel.Width, Px(16));
 
                 int ListTop = P + RH + Px(14);
@@ -612,7 +629,9 @@ namespace RBX_Alt_Manager
         {
             CardView = Cards;
             Grid.Visible = Cards;
-            ViewToggleButton.Text = Cards ? "List view" : "Card view";
+            ViewToggleButton.Text = ViewToggleButton.FullText = Cards ? "List view" : "Card view";
+            ViewToggleButton.ShortText = Cards ? "List" : "Cards";
+            CenterPane.PerformLayout();
 
             if (Cards) { Grid.BringToFront(); RefreshGrid(); CardPresenceTimer.Start(); }
             else CardPresenceTimer.Stop();
@@ -982,7 +1001,8 @@ namespace RBX_Alt_Manager
             int N = GroupNeedingLogin().Count;
             bool Show = N > 0;
 
-            LoginGroupButton.Text = $"Log in group ({N})";
+            LoginGroupButton.Text = LoginGroupButton.FullText = $"Log in group ({N})";
+            LoginGroupButton.ShortText = $"Log in ({N})";
             LoginGroupButton.Style = ModernButtonStyle.Outline;
 
             if (LoginGroupButton.Visible != Show) { LoginGroupButton.Visible = Show; CenterPane.PerformLayout(); }
@@ -1019,7 +1039,8 @@ namespace RBX_Alt_Manager
                     var A = Queue[i];
                     if (AccountRowRenderer.StateOf(A) != AccountState.NeedsLogin) continue; // logged in meanwhile
 
-                    LoginGroupButton.Text = $"Stop · {i + 1}/{Queue.Count} {A.Username}";
+                    LoginGroupButton.Text = $"Stop · {i + 1}/{Queue.Count}";
+                    SaveTooltip.SetToolTip(LoginGroupButton, $"Logging in {A.Username} – click to stop the queue");
                     CenterPane.PerformLayout();
 
                     await LoginAccountAsync(A);
@@ -1029,7 +1050,7 @@ namespace RBX_Alt_Manager
                     if (i < Queue.Count - 1 && !Token.IsCancellationRequested)
                         for (int s = LoginQueueDelay; s > 0 && !Token.IsCancellationRequested; s--)
                         {
-                            LoginGroupButton.Text = $"Stop · next in {s} s ({i + 2}/{Queue.Count})";
+                            LoginGroupButton.Text = $"Stop · next in {s} s";
                             try { await Task.Delay(1000, Token); } catch (TaskCanceledException) { }
                         }
                 }

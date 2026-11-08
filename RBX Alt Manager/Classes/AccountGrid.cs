@@ -329,7 +329,7 @@ namespace RBX_Alt_Manager.Classes
             var (JoinR, MainR) = Buttons(R);
 
             DrawButton(G, JoinR, "Join", false, !Banned && A == HoverAccount && HoverButton == 1, Banned);
-            DrawButton(G, MainR, $"Join {MainName}", true, !Banned && A == HoverAccount && HoverButton == 2, Banned);
+            DrawButton(G, MainR, $"Join {MainName}", false, !Banned && A == HoverAccount && HoverButton == 2, Banned);
         }
 
         private static string FirstLine(string Text) => (Text ?? string.Empty).Split('\n')[0].Trim();
