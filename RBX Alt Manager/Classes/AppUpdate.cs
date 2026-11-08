@@ -23,7 +23,7 @@ namespace RBX_Alt_Manager.Classes
     public static class AppUpdate
     {
         /// <summary>Raise this by one for every released build; must match Download/version.txt in the repo.</summary>
-        public const int BuildNumber = 4;
+        public const int BuildNumber = 5;
 
         private const string Base = "https://raw.githubusercontent.com/VerifiedNick/virtuality-manager/main/Download/";
         private const string VersionUrl = Base + "version.txt";
@@ -115,6 +115,14 @@ namespace RBX_Alt_Manager.Classes
                 try { Process.GetProcessById(OldPid).WaitForExit(20000); } catch { }
 
                 string Self = Process.GetCurrentProcess().MainModule.FileName;
+
+                // an old background lock holder started from the app folder would keep the exe locked: end it (running games are not affected)
+                try
+                {
+                    foreach (var P in Process.GetProcessesByName(Path.GetFileNameWithoutExtension(Target)))
+                        try { if (P.Id != Process.GetCurrentProcess().Id && string.Equals(P.MainModule.FileName, Target, StringComparison.OrdinalIgnoreCase)) { P.Kill(); P.WaitForExit(3000); } } catch { }
+                }
+                catch { }
 
                 for (int i = 0; i < 30; i++)
                 {

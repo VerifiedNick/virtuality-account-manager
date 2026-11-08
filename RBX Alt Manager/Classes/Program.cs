@@ -139,9 +139,9 @@ namespace RBX_Alt_Manager
             int Stupid = 1337;
 
             // background copy that keeps Roblox's lock for multi Roblox (see RobloxLock) – nothing else runs
-            if (Arguments.Length == 1 && Arguments[0] == "-holdroblox")
+            if (Arguments.Length >= 1 && Arguments[0] == "-holdroblox")
             {
-                RBX_Alt_Manager.Classes.RobloxLock.Run();
+                RBX_Alt_Manager.Classes.RobloxLock.Run(Arguments.Length > 1 ? Arguments[1] : System.Diagnostics.Process.GetCurrentProcess().ProcessName);
                 return;
             }
 

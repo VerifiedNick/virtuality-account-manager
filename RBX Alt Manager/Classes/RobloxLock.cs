@@ -44,12 +44,16 @@ namespace RBX_Alt_Manager.Classes
             try
             {
                 if (Starting == null || Starting.HasExited)
-                    Starting = Process.Start(new ProcessStartInfo(Application.ExecutablePath, "-holdroblox")
+                {
+                    string Exe = HolderExe();
+
+                    Starting = Process.Start(new ProcessStartInfo(Exe, $"-holdroblox \"{Process.GetCurrentProcess().ProcessName}\"")
                     {
                         UseShellExecute = false,
                         CreateNoWindow = true,
-                        WorkingDirectory = Path.GetDirectoryName(Application.ExecutablePath)
+                        WorkingDirectory = Path.GetDirectoryName(Exe)
                     });
+                }
             }
             catch (Exception x) { Program.Logger.Warn($"[MultiRoblox] could not start the lock holder: {x.Message}"); return false; }
 
@@ -61,6 +65,37 @@ namespace RBX_Alt_Manager.Classes
             }
 
             return HolderRunning;
+        }
+
+        /// <summary>
+        /// The holder runs from its own copy in %LocalAppData%, not from the app folder: while Roblox is open the holder keeps running,
+        /// and a running exe in the app folder could not be deleted, moved or replaced by an update.
+        /// </summary>
+        private static string HolderExe()
+        {
+            string Own = Application.ExecutablePath;
+
+            try
+            {
+                string Dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Virtuality Manager", "Holder");
+                Directory.CreateDirectory(Dir);
+
+                string Copy = Path.Combine(Dir, "VirtualityLockHolder.exe");
+                var A = new FileInfo(Own);
+
+                if (!File.Exists(Copy) || new FileInfo(Copy).Length != A.Length || new FileInfo(Copy).LastWriteTimeUtc != A.LastWriteTimeUtc)
+                {
+                    try
+                    {
+                        File.Copy(Own, Copy, true);
+                        if (File.Exists(Own + ".config")) File.Copy(Own + ".config", Copy + ".config", true);
+                    }
+                    catch { if (!File.Exists(Copy)) return Own; } // copy in use by a running holder: that one is fine
+                }
+
+                return Copy;
+            }
+            catch { return Own; }
         }
 
         /// <summary>Multi Roblox switched off: the holder lets the lock go.</summary>
@@ -83,7 +118,7 @@ namespace RBX_Alt_Manager.Classes
         }
 
         /// <summary>Holder side (the "-holdroblox" process). No window, no log, no data files.</summary>
-        public static void Run()
+        public static void Run(string ManagerProcessName)
         {
             Mutex Lock = null, Marker = null;
             bool Owned = false;
@@ -113,7 +148,7 @@ namespace RBX_Alt_Manager.Classes
                         // if Roblox was already open then (or the manager restarted), the holder takes it as soon as it is free – and keeps it through restarts.
                         if (CookieLock == null) CookieLock = TakeCookieFile();
 
-                        bool Manager = Process.GetProcessesByName(Me.ProcessName).Any(p => p.Id != Me.Id);
+                        bool Manager = Process.GetProcessesByName(ManagerProcessName).Any(p => p.Id != Me.Id);
                         bool Roblox = Process.GetProcessesByName("RobloxPlayerBeta").Length > 0;
 
                         if (!Manager && !Roblox) break;
