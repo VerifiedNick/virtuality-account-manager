@@ -185,35 +185,43 @@ namespace RBX_Alt_Manager.Classes
 
                 DrawIcon(G, Item, IconR);
 
-                int BadgeW = 0;
-
-                void Badge(string Text, Color Fore, Color Fill, Color Border)
-                {
-                    int BW = TextRenderer.MeasureText(Text, CountFont, Size.Empty, TextFormatFlags.NoPadding).Width + (int)(10 * S);
-                    var BR = new Rectangle(R.Right - BadgeW - BW - (int)(8 * S), R.Y + (R.Height - (int)(18 * S)) / 2, BW, (int)(18 * S));
-
-                    Modern.Box(G, BR, Fill, Border);
-                    TextRenderer.DrawText(G, Text, CountFont, BR, Fore, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding);
-                    BadgeW += BW + (int)(4 * S);
-                }
-
-                if (Item.Banned > 0) Badge($"{Item.Banned} banned", Modern.Danger, Modern.DangerBg, Modern.DangerLine);
-                if (Item.NeedLogin > 0) Badge($"{Item.NeedLogin} login", Modern.Warn, Color.FromArgb(24, 18, 4), Color.FromArgb(80, 60, 15));
-                if (BadgeW > 0) BadgeW += (int)(4 * S);
-
                 int TextX = IconR.Right + (int)(10 * S);
-                var TitleR = new Rectangle(TextX, R.Y + (int)(7 * S), R.Right - TextX - (int)(6 * S) - BadgeW, (int)(20 * S));
+                var TitleR = new Rectangle(TextX, R.Y + (int)(7 * S), R.Right - TextX - (int)(8 * S), (int)(20 * S));
                 var CountR = new Rectangle(TextX, TitleR.Bottom, TitleR.Width, (int)(17 * S));
 
                 TextRenderer.DrawText(G, Item.Title, TitleFont, TitleR, Active ? Modern.Text : Modern.Text2, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
                 string CountText = Item.Count == 1 ? "1 account" : $"{Item.Count} accounts";
                 TextRenderer.DrawText(G, CountText, CountFont, CountR, Modern.Sub, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
 
+                // banned / not logged in: small marks at the right end of the second line (the totals are in the header, so not on "All accounts")
+                int BadgeLeft = CountR.Right;
+
+                if (Item.Key != null)
+                {
+                    Font BF = Modern.Font(7.5f, FontStyle.Regular, true);
+
+                    void Badge(int Count, Color Fore, Color Fill, Color Border)
+                    {
+                        if (Count <= 0) return;
+
+                        string T = Count.ToString();
+                        int BW = Math.Max((int)(16 * S), TextRenderer.MeasureText(T, BF, Size.Empty, TextFormatFlags.NoPadding).Width + (int)(8 * S));
+                        var BR = new Rectangle(BadgeLeft - BW, CountR.Y + (CountR.Height - (int)(14 * S)) / 2, BW, (int)(14 * S));
+
+                        Modern.Box(G, BR, Fill, Border);
+                        TextRenderer.DrawText(G, T, BF, BR, Fore, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding);
+                        BadgeLeft = BR.Left - (int)(4 * S);
+                    }
+
+                    Badge(Item.Banned, Modern.Danger, Modern.DangerBg, Modern.DangerLine);
+                    Badge(Item.NeedLogin, Modern.Warn, Color.FromArgb(24, 18, 4), Color.FromArgb(80, 60, 15));
+                }
+
                 if (Item.Key != null)
                 {
                     int CW = TextRenderer.MeasureText(CountText, CountFont, Size.Empty, TextFormatFlags.NoPadding).Width + (int)(12 * S);
 
-                    if (CountR.Width > CW + (int)(50 * S))
+                    if (BadgeLeft - (CountR.X + CW) > (int)(52 * S))
                         Modern.VariantTag(G, GroupImages.Resolve(Item.Key).Variant, CountR.X + CW, CountR.Y + (CountR.Height - (int)(13 * S)) / 2, (int)(13 * S));
                 }
             }
