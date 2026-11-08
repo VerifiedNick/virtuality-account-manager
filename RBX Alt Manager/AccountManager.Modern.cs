@@ -261,8 +261,9 @@ namespace RBX_Alt_Manager
                 // the header follows the three columns below it: overview | game + job (= list width) | join + icons (= card width)
                 int G = Modern.Gutter, H = Modern.RowH, Y = (HeaderBar.Height - H) / 2, Gap = Px(8);
 
-                int CenterLeft = SideBar.Width + G, CenterRight = HeaderBar.Width - AccountCard.Width - G;
-                int RightLeft = HeaderBar.Width - AccountCard.Width + G, Right = HeaderBar.Width - G;
+                // uses the fixed card width, not the animated one: the header must not jump around while the panel slides, and must stay put while it is hidden
+                int CenterLeft = SideBar.Width + G, CenterRight = HeaderBar.Width - AccountCardWidth - G;
+                int RightLeft = HeaderBar.Width - AccountCardWidth + G, Right = HeaderBar.Width - G;
 
                 // icons start on the line of the account card, "Join selected" ends at the right edge
                 int Left = RightLeft;
@@ -1398,7 +1399,10 @@ namespace RBX_Alt_Manager
 
             ModernSkin.StyleMenu(Menu);
             Menu.Closed += (s, e) => BeginInvoke(new Action(Menu.Dispose));
-            Menu.Show(Cursor.Position);
+
+            // opened a moment later: shown straight from another menu's click it would close again at once
+            var Where = Cursor.Position;
+            BeginInvoke(new Action(() => Menu.Show(Where)));
         }
 
         /// <summary>Menu to choose the join target: the main account, any account by group, or any Roblox user by name.</summary>
