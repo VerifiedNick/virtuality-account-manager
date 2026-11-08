@@ -522,6 +522,9 @@ namespace RBX_Alt_Manager
             AccountCard.OpenBrowser.Menu = OpenBrowserStrip;
             AccountCard.Follow.Click += (s, e) => FollowUserPrompt();
             AccountCard.ChangeMain.Click += (s, e) => ChangeMainAccount();
+            AccountCard.ChangeJoin.Click += (s, e) => ShowJoinTargetMenu(AccountCard.ChangeJoin, new Point(0, AccountCard.ChangeJoin.Height));
+            Grid.JoinTargetMenuRequested = P => ShowJoinTargetMenu(Grid, P);
+            SaveTooltip.SetToolTip(AccountCard.ChangeJoin, "Choose which account the \"Join …\" button on every account joins – from your groups or any Roblox user.\nTip: right click the \"Join …\" button does the same.");
             AccountCard.EditNote.Click += (s, e) => EditNoteDialog();
             AccountCard.Remove.Click += (s, e) => Remove_Click(AccountCard.Remove, EventArgs.Empty);
 
@@ -562,7 +565,8 @@ namespace RBX_Alt_Manager
             AccountCard.MoreTools.Menu = MoreToolsMenu;
 
             AccountCard.FriendTarget = FriendTargetName;
-            Grid.MainName = FriendTargetName;
+            Grid.MainName = JoinTargetName;
+            AccountCard.JoinTarget = JoinTargetName;
         }
 
         /// <summary>Restyles the reused controls after the theme engine ran over them.</summary>
@@ -761,11 +765,16 @@ namespace RBX_Alt_Manager
 
         private async void JoinMainWith(Account A)
         {
-            string Target = FriendTargetName;
+            string Target = JoinTargetName;
+            if (Target.Length == 0) { ShowJoinTargetMenu(Grid, Grid.PointToClient(Cursor.Position)); return; } // nothing chosen yet: choose first
 
-            var (Found, TargetId) = await Task.Run(() => (GetUserID(Target, out long Id, out _), Id));
+            // one of your own accounts: its user id is known, no lookup needed
+            var Own = AccountsList.FirstOrDefault(a => string.Equals(a.Username, Target, StringComparison.OrdinalIgnoreCase));
+            var (Found, TargetId) = Own != null && Own.UserID > 0 ? (true, Own.UserID) : await Task.Run(() => (GetUserID(Target, out long Id, out _), Id));
 
-            if (!Found || TargetId <= 0) { ModernDialog.Show($"The Roblox user \"{Target}\" was not found. Change the main account on the right (\"Change\").", "Join " + Target, MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+            if (!Found || TargetId <= 0) { ModernDialog.Show($"The Roblox user \"{Target}\" was not found. Choose another one on the right (\"Join button joins … Change\").", "Join " + Target, MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+
+            if (Own == A) { ModernDialog.Show($"{A.Username} can't join itself. Choose another account for the Join button (on the right, or right click the button).", "Join " + Target, MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
 
             if (!(await Presence.GetPresenceSingular(TargetId) is UserPresence Status && Status.userPresenceType == UserPresenceType.InGame && Status.placeId is long PlaceId && PlaceId > 0) &&
                 !Utilities.YesNoPrompt("Join " + Target, $"{Target} is not in a game right now or has joins turned off", "Do you want to try to join anyway?"))
@@ -1029,6 +1038,9 @@ namespace RBX_Alt_Manager
             var Keys = AccountsList.Select(a => a.Group).Distinct().ToList();
             foreach (string Saved in SavedGroups.All) if (!Keys.Any(k => string.Equals(k, Saved, StringComparison.OrdinalIgnoreCase))) Keys.Add(Saved);
 
+            // nobody made groups yet (new install): everything is simply under "All accounts", no lonely "Default" group
+            if (Keys.Count == 1 && (string.IsNullOrEmpty(Keys[0]) || Keys[0] == "Default")) Keys.Clear();
+
             foreach (string Key in Keys.OrderBy(k => k, StringComparer.CurrentCulture))
             {
                 var InGroup = AccountsList.Where(a => a.Group == Key).ToList();
@@ -1279,7 +1291,71 @@ namespace RBX_Alt_Manager
             }
         }
 
-        private string FriendTargetName => General != null && General.Exists("FriendTarget") && !string.IsNullOrWhiteSpace(General.Get("FriendTarget")) ? General.Get("FriendTarget").Trim() : "";
+        /// <summary>The account the "Join …" button on every account joins. Its own setting; until chosen it is the main account.</summary>
+        private string JoinTargetName => General != null && General.Exists("JoinTarget") && !string.IsNullOrWhiteSpace(General.Get("JoinTarget")) ? General.Get("JoinTarget").Trim() : FriendTargetName;
+
+        private void SetJoinTarget(string Name)
+        {
+            if (string.IsNullOrWhiteSpace(Name)) return;
+
+            General.Set("JoinTarget", Name.Trim());
+            IniSettings.Save("RAMSettings.ini");
+
+            Grid.MainName = JoinTargetName;
+            Grid.Invalidate();
+            AccountCard.JoinTarget = JoinTargetName;
+            AccountCard.Invalidate();
+        }
+
+        /// <summary>Menu to choose the join target: the main account, any account by group, or any Roblox user by name.</summary>
+        private void ShowJoinTargetMenu(Control Owner, Point Where)
+        {
+            var Menu = new ContextMenuStrip();
+            string Current = JoinTargetName;
+
+            ToolStripMenuItem Pick(string Name, string Text)
+            {
+                var I = new ToolStripMenuItem(Text) { Checked = string.Equals(Name, Current, StringComparison.OrdinalIgnoreCase) };
+                I.Click += (s, e) => SetJoinTarget(Name);
+                return I;
+            }
+
+            Menu.Items.Add(new ToolStripMenuItem("The Join button joins:") { Enabled = false });
+            if (FriendTargetName.Length > 0)
+            {
+                Menu.Items.Add(Pick(FriendTargetName, $"{FriendTargetName}   (main account)"));
+                Menu.Items.Add(new ToolStripSeparator());
+            }
+
+            foreach (var G in AccountsList.Where(a => !string.IsNullOrEmpty(a.Username)).GroupBy(a => a.Group ?? string.Empty).OrderBy(g => GroupTitleOf(g.Key), StringComparer.OrdinalIgnoreCase))
+            {
+                var Sub = new ToolStripMenuItem($"{GroupTitleOf(G.Key)}   ({G.Count()})");
+                foreach (var A in G.OrderBy(a => a.Username, StringComparer.OrdinalIgnoreCase))
+                    Sub.DropDownItems.Add(Pick(A.Username, A.Username));
+                if (G.Any(a => string.Equals(a.Username, Current, StringComparison.OrdinalIgnoreCase))) Sub.Checked = true;
+                ModernSkin.StyleMenu(Sub.DropDown);
+                Menu.Items.Add(Sub);
+            }
+
+            Menu.Items.Add(new ToolStripSeparator());
+            var Other = new ToolStripMenuItem("Other Roblox user…");
+            Other.Click += (s, e) =>
+            {
+                using (var Dialog = MakeDialog("Join button", 130))
+                {
+                    var NameBox = DialogTextBox(Dialog, "Roblox username the Join button joins", Current, 14);
+                    DialogButtons(Dialog);
+                    if (Dialog.ShowDialog(this) == DialogResult.OK) SetJoinTarget(NameBox.Text);
+                }
+            };
+            Menu.Items.Add(Other);
+
+            ModernSkin.StyleMenu(Menu);
+            Menu.Closed += (s, e) => BeginInvoke(new Action(Menu.Dispose));
+            Menu.Show(Owner, Where);
+        }
+
+        private string FriendTargetName => General != null && General.Exists("FriendTarget") && !string.IsNullOrWhiteSpace(General.Get("FriendTarget")) ? General.Get("FriendTarget").Trim() : string.Empty;
 
         private int FriendDelaySeconds => General != null && General.Exists("FriendRequestDelay") && int.TryParse(General.Get("FriendRequestDelay"), out int D) ? Math.Max(1, Math.Min(D, 600)) : 6;
 
@@ -1288,6 +1364,8 @@ namespace RBX_Alt_Manager
             if (FriendTokenSource != null) { FriendTokenSource.Cancel(); return; } // button works as "stop" while running
 
             string Target = FriendTargetName;
+            if (Target.Length == 0) { ChangeMainAccount(); return; } // no main account yet: choose it first
+
             var Accounts = AccountCard.Selection.Where(a => !string.Equals(a.Username, Target, StringComparison.OrdinalIgnoreCase)).ToList();
 
             if (Accounts.Count == 0) { ModernDialog.Show($"Select the alt accounts that should add {Target}.", "Add main account", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
@@ -1604,7 +1682,8 @@ namespace RBX_Alt_Manager
 
             AccountCard.FriendTarget = FriendTargetName;
             AccountCard.RefreshState();
-            Grid.MainName = FriendTargetName;
+            Grid.MainName = JoinTargetName;
+            AccountCard.JoinTarget = JoinTargetName;
             Grid.Invalidate();
         }
 

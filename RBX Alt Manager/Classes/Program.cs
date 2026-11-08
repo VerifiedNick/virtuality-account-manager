@@ -21,7 +21,9 @@ namespace RBX_Alt_Manager
         /// The main entry point for the application.
         /// </summary>
 
-        public static readonly ILog Logger = LogManager.GetLogger("Account Manager");
+        // created on first use, so the background "-holdroblox" copy never opens log.txt
+        private static ILog _Logger;
+        public static ILog Logger => _Logger ?? (_Logger = LogManager.GetLogger("Account Manager"));
         public static bool Closed = false; // RobloxProcess.cs would cause the program to chill in the background as long roblox was also running
         public static bool Elevated;
         public static float Scale
@@ -128,13 +130,20 @@ namespace RBX_Alt_Manager
         }
 
 #if !DEBUG
-        private static readonly Mutex mutex = new Mutex(true, "{93b3858f-3dac-4dc0-99cb-0476efc5adce}");
+        private static Mutex mutex; // created in Main (not for the "-holdroblox" copy)
 #endif
 
         [STAThread]
         static void Main(params string[] Arguments)
         {
             int Stupid = 1337;
+
+            // background copy that keeps Roblox's lock for multi Roblox (see RobloxLock) – nothing else runs
+            if (Arguments.Length == 1 && Arguments[0] == "-holdroblox")
+            {
+                RBX_Alt_Manager.Classes.RobloxLock.Run();
+                return;
+            }
 
             // "-after <pid>": started by "restore backup" – wait until the old window is really gone
             int AfterIndex = Array.IndexOf(Arguments, "-after");
@@ -255,7 +264,12 @@ namespace RBX_Alt_Manager
             }
 
 #if !DEBUG
-            if (mutex.WaitOne(TimeSpan.Zero, true))
+            mutex = new Mutex(true, "{93b3858f-3dac-4dc0-99cb-0476efc5adce}");
+            bool OnlyInstance;
+            try { OnlyInstance = mutex.WaitOne(TimeSpan.Zero, true); }
+            catch (AbandonedMutexException) { OnlyInstance = true; } // the last manager crashed
+
+            if (OnlyInstance)
             {
 #endif
                 try

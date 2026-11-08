@@ -16,16 +16,18 @@ namespace RBX_Alt_Manager.Classes
         public readonly ModernButton CopyPassword = new ModernButton() { Text = "Copy" };
         public readonly ModernButton ShowPassword = new ModernButton() { Icon = IconKind.Eye, Style = ModernButtonStyle.Ghost };
         public readonly ModernButton Login = new ModernButton() { Text = "Login", Icon = IconKind.Login, Style = ModernButtonStyle.Primary, TextPoints = 10.5f };
-        public readonly ModernButton AddFriend = new ModernButton() { Text = "Add ", Style = ModernButtonStyle.Outline };
+        public readonly ModernButton AddFriend = new ModernButton() { Text = "Add main account", Style = ModernButtonStyle.Outline };
         public readonly ModernButton OpenBrowser = new ModernButton() { Text = "Open browser" };
         public readonly ModernButton Follow = new ModernButton() { Text = "Follow user" };
         public readonly ModernButton MoreTools = new ModernButton() { Text = "More tools", SplitMenu = false };
         public readonly ModernButton ChangeMain = new ModernButton() { Text = "Change", Style = ModernButtonStyle.Ghost, Bold = false, TextPoints = 8.5f };
+        public readonly ModernButton ChangeJoin = new ModernButton() { Text = "Change", Style = ModernButtonStyle.Ghost, Bold = false, TextPoints = 8.5f };
         public readonly ModernButton EditNote = new ModernButton() { Text = "Edit note", Bold = false };
         public readonly ModernButton Remove = new ModernButton() { Text = "Remove…", Style = ModernButtonStyle.Danger, Bold = false };
 
         public Func<string, string> GroupTitle = g => g;
-        public string FriendTarget = "";
+        public string FriendTarget = string.Empty;
+        public string JoinTarget = string.Empty;
 
         /// <summary>Login for one account (the per-row buttons of a multi selection).</summary>
         public Action<Account> LoginRequested = _ => { };
@@ -46,7 +48,7 @@ namespace RBX_Alt_Manager.Classes
         private bool PasswordVisible;
 
         // painted areas, filled by OnLayout
-        private Rectangle AvatarR, NameR, ChipsR, WarningR, LoginBoxR, LoginCaptionR, UserFieldR, PassFieldR, EmailR, CopyHintR, LoginHintR, MainRowR;
+        private Rectangle AvatarR, NameR, ChipsR, WarningR, LoginBoxR, LoginCaptionR, UserFieldR, PassFieldR, EmailR, CopyHintR, LoginHintR, MainRowR, JoinRowR;
 
         public AccountCardPanel()
         {
@@ -55,7 +57,7 @@ namespace RBX_Alt_Manager.Classes
             BackColor = Modern.Panel;
             Tag = "NoScaling";
 
-            foreach (var B in new[] { CopyUser, CopyPassword, ShowPassword, Login, AddFriend, OpenBrowser, Follow, MoreTools, ChangeMain, EditNote, Remove })
+            foreach (var B in new[] { CopyUser, CopyPassword, ShowPassword, Login, AddFriend, OpenBrowser, Follow, MoreTools, ChangeMain, ChangeJoin, EditNote, Remove })
                 Controls.Add(B);
 
             List = new SelectionList(this) { Visible = false };
@@ -118,7 +120,7 @@ namespace RBX_Alt_Manager.Classes
 
             if (!AddFriendBusy)
             {
-                AddFriend.Text = $"Add {FriendTarget}";
+                AddFriend.Text = string.IsNullOrEmpty(FriendTarget) ? "Add main account" : $"Add {FriendTarget}";
                 AddFriend.Enabled = Any;
             }
 
@@ -195,6 +197,9 @@ namespace RBX_Alt_Manager.Classes
             int ChangeW = Modern.Px(64);
             MainRowR = new Rectangle(P, Y, W - ChangeW - Modern.Px(6), Modern.Px(28));
             ChangeMain.SetBounds(P + W - ChangeW, Y, ChangeW, Modern.Px(28));
+            Y += Modern.Px(28) + Modern.Px(2);
+            JoinRowR = new Rectangle(P, Y, W - ChangeW - Modern.Px(6), Modern.Px(28));
+            ChangeJoin.SetBounds(P + W - ChangeW, Y, ChangeW, Modern.Px(28));
             Y += Modern.Px(28);
 
             int BottomH = Modern.Px(36);
@@ -209,7 +214,7 @@ namespace RBX_Alt_Manager.Classes
             int Inner = Modern.Px(12), Half = (W - Gap) / 2, BH = Modern.Px(40), BottomH = Modern.Px(36);
 
             // everything under the list has a fixed height, the list takes the rest
-            int Below = Modern.Px(14) + Modern.Px(46) + Modern.Px(4) + Modern.Px(34) + Modern.Px(10) + BH + Modern.Px(8) + BH + Modern.Px(10) + Modern.Px(28) + Modern.Px(14) + BottomH + P;
+            int Below = Modern.Px(14) + Modern.Px(46) + Modern.Px(4) + Modern.Px(34) + Modern.Px(10) + BH + Modern.Px(8) + BH + Modern.Px(10) + Modern.Px(28) + Modern.Px(2) + Modern.Px(28) + Modern.Px(14) + BottomH + P;
             int BoxH = Math.Max(Modern.Px(150), Height - Y - Below);
 
             ListBoxR = new Rectangle(P, Y, W, BoxH);
@@ -237,6 +242,9 @@ namespace RBX_Alt_Manager.Classes
             int ChangeW = Modern.Px(64);
             MainRowR = new Rectangle(P, Y, W - ChangeW - Modern.Px(6), Modern.Px(28));
             ChangeMain.SetBounds(P + W - ChangeW, Y, ChangeW, Modern.Px(28));
+            Y += Modern.Px(28) + Modern.Px(2);
+            JoinRowR = new Rectangle(P, Y, W - ChangeW - Modern.Px(6), Modern.Px(28));
+            ChangeJoin.SetBounds(P + W - ChangeW, Y, ChangeW, Modern.Px(28));
             Y += Modern.Px(28);
 
             int BottomY = Math.Max(Y + Modern.Px(14), Height - P - BottomH);
@@ -390,12 +398,17 @@ namespace RBX_Alt_Manager.Classes
 
         private void PaintMainRow(Graphics G)
         {
-            // main account row
-            Font MF = Modern.Font(8.5f);
-            string Lead = "Main account for friend requests: ";
-            int LW = TextRenderer.MeasureText(G, Lead, MF, Size.Empty, TextFormatFlags.NoPadding).Width;
+            // main account row + join target row: same caption column, names start on one line
+            Font MF = Modern.Font(8.5f), NF = Modern.Font(8.5f, FontStyle.Regular, true);
+            string Lead = "Friend requests go to", JoinLead = "Join button joins";
+            int LW = Math.Max(TextRenderer.MeasureText(G, Lead, MF, Size.Empty, TextFormatFlags.NoPadding).Width,
+                              TextRenderer.MeasureText(G, JoinLead, MF, Size.Empty, TextFormatFlags.NoPadding).Width) + Modern.Px(10);
+
             Modern.Text_(G, Lead, MF, MainRowR, Modern.Sub, TextFormatFlags.NoPadding);
-            Modern.Text_(G, FriendTarget, Modern.Font(8.5f, FontStyle.Regular, true), new Rectangle(MainRowR.X + LW, MainRowR.Y, Math.Max(0, MainRowR.Width - LW), MainRowR.Height), Modern.Text, TextFormatFlags.NoPadding);
+            Modern.Text_(G, string.IsNullOrEmpty(FriendTarget) ? "not chosen yet" : FriendTarget, NF, new Rectangle(MainRowR.X + LW, MainRowR.Y, Math.Max(0, MainRowR.Width - LW), MainRowR.Height), string.IsNullOrEmpty(FriendTarget) ? Modern.Sub : Modern.Text, TextFormatFlags.NoPadding | TextFormatFlags.EndEllipsis);
+
+            Modern.Text_(G, JoinLead, MF, JoinRowR, Modern.Sub, TextFormatFlags.NoPadding);
+            Modern.Text_(G, string.IsNullOrEmpty(JoinTarget) ? "not chosen yet" : JoinTarget, NF, new Rectangle(JoinRowR.X + LW, JoinRowR.Y, Math.Max(0, JoinRowR.Width - LW), JoinRowR.Height), string.IsNullOrEmpty(JoinTarget) ? Modern.Sub : Modern.Text, TextFormatFlags.NoPadding | TextFormatFlags.EndEllipsis);
         }
 
         /// <summary>Scrollable rows of the selected accounts: picture, name, status and a Login button per account.</summary>

@@ -45,8 +45,11 @@ namespace RBX_Alt_Manager.Classes
         public Action<Account> JoinMainClicked = _ => { };
         public Action<Account> ReloginClicked = _ => { };
         public Action<Account, Point> ContextRequested = (_, __) => { };
+        /// <summary>Right click on the "Join …" button: choose which account that button joins.</summary>
+        public Action<Point> JoinTargetMenuRequested = _ => { };
         public Func<string, string> SectionTitle = g => g;
-        public string MainName = "";
+        public string MainName = string.Empty;
+        private string MainLabel => string.IsNullOrEmpty(MainName) ? "Join …" : $"Join {MainName}";
 
         private int Pad => Modern.Px(14);
         private int GapX => Modern.Px(10);
@@ -356,7 +359,7 @@ namespace RBX_Alt_Manager.Classes
             var (JoinR, MainR) = Buttons(R);
 
             DrawButton(G, JoinR, "Join", false, !Banned && A == HoverAccount && HoverButton == 1, Banned);
-            DrawButton(G, MainR, $"Join {MainName}", false, !Banned && A == HoverAccount && HoverButton == 2, Banned);
+            DrawButton(G, MainR, MainLabel, false, !Banned && A == HoverAccount && HoverButton == 2, Banned);
         }
 
         /// <summary>List view row: picture, name + e-mail, status, last used, note, and the same buttons as the card.</summary>
@@ -450,7 +453,7 @@ namespace RBX_Alt_Manager.Classes
 
             var (JoinR, MainR) = Buttons(R);
             DrawButton(G, JoinR, "Join", false, !Banned && A == HoverAccount && HoverButton == 1, Banned);
-            DrawButton(G, MainR, $"Join {MainName}", false, !Banned && A == HoverAccount && HoverButton == 2, Banned);
+            DrawButton(G, MainR, MainLabel, false, !Banned && A == HoverAccount && HoverButton == 2, Banned);
         }
 
         private static string FirstLine(string Text) => (Text ?? string.Empty).Split('\n')[0].Trim();
@@ -550,6 +553,12 @@ namespace RBX_Alt_Manager.Classes
                     PendingClear = ModifierKeys == Keys.None;
                 }
 
+                return;
+            }
+
+            if (e.Button == MouseButtons.Right && Button == 2)
+            {
+                JoinTargetMenuRequested(e.Location);
                 return;
             }
 

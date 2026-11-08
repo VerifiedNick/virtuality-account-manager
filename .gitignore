@@ -332,3 +332,13 @@ __pycache__/
 *.xsd.cs
 
 # OpenCover UI anal
+# Virtuality Manager: never commit account data
+Daten/
+AccountData.json*
+RAMSettings.ini
+LoginProfiles/
+Backups/
+Groups.json
+GroupImages/
+migrate-from.txt
+log.txt*

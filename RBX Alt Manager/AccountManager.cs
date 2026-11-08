@@ -80,7 +80,6 @@ namespace RBX_Alt_Manager
         public static IniSection Watcher;
         public static IniSection Prompts;
 
-        private static Mutex rbxMultiMutex;
         private readonly static object saveLock = new object();
         private readonly static object rgSaveLock = new object();
         public event EventHandler<GameArgs> RecentGameAdded;
@@ -141,6 +140,8 @@ namespace RBX_Alt_Manager
                         ModernDialog.Show("In case the font scaling is incorrect, open RAMSettings.ini and change \"ScaleFonts=true\" to \"ScaleFonts=false\" without the quotes.", "Roblox Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             if (!General.Exists("ScaleFonts")) General.Set("ScaleFonts", "true");
+            // main account: existing installs keep the one they always had, a brand-new install starts without one (chosen with "Change")
+            if (!General.Exists("FriendTarget")) General.Set("FriendTarget", File.Exists(SaveFilePath) ? "" : "");
             if (!General.Exists("AutoCookieRefresh")) General.Set("AutoCookieRefresh", "true");
             if (!General.Exists("AutoCloseLastProcess")) General.Set("AutoCloseLastProcess", "true");
             if (!General.Exists("ShowPresence")) General.Set("ShowPresence", "true");
@@ -373,6 +374,7 @@ namespace RBX_Alt_Manager
 
         #endregion
 
+        private static readonly bool UpstreamUpdates = false;
         private readonly static string SaveFilePath = Path.Combine(Environment.CurrentDirectory, "AccountData.json");
         private readonly static string RecentGamesFilePath = Path.Combine(Environment.CurrentDirectory, "RecentGames.json"); // i shouldve combined everything that isnt accountdata into one file but oh well im too lazy : |
 
@@ -822,7 +824,9 @@ namespace RBX_Alt_Manager
             if (General.Get<bool>("HideUsernames"))
                 HideUsernamesCheckbox.Checked = true;
 
-            if (General.Get<bool>("CheckForUpdates"))
+            // Virtuality Manager is its own app: the original's updater would replace it with the original Roblox Account Manager
+            // (and download a program from someone else's GitHub). Updates come only as a new Virtuality Manager.exe.
+            if (UpstreamUpdates && General.Get<bool>("CheckForUpdates"))
             {
                 Task.Run(() =>
                 {
@@ -1430,26 +1434,30 @@ namespace RBX_Alt_Manager
                 StartNexusQuietly(); // starts the account control server without opening its page
         }
 
-        /// <summary>Multi Roblox needs Roblox closed when the manager takes Roblox's lock: close it (setting "CloseRobloxForMulti", on by default) and take the lock.</summary>
+        /// <summary>
+        /// Multi Roblox: a background holder keeps Roblox's lock (see RobloxLock), so restarting the manager never closes running games.
+        /// Only when the lock can't be taken at all – a Roblox window was opened without the manager – Roblox is closed
+        /// (setting "CloseRobloxForMulti", on by default), because otherwise only one window would work.
+        /// </summary>
         private async void EnsureMultiRoblox()
         {
             try
             {
-                if (!General.Get<bool>("EnableMultiRbx") || UpdateMultiRoblox()) return;
+                if (!General.Get<bool>("EnableMultiRbx") || await Task.Run(() => UpdateMultiRoblox())) return;
 
                 bool CloseIt = !General.Exists("CloseRobloxForMulti") || General.Get<bool>("CloseRobloxForMulti");
 
                 if (CloseIt)
                 {
                     foreach (var P in Process.GetProcessesByName("RobloxPlayerBeta"))
-                        try { P.Kill(); Program.Logger.Info($"[MultiRoblox] closed Roblox (pid {P.Id}) so multi Roblox can start"); } catch { }
+                        try { P.Kill(); Program.Logger.Info($"[MultiRoblox] closed Roblox (pid {P.Id}): it was opened without the manager and blocked multi Roblox"); } catch { }
                 }
 
                 // wait until Roblox is gone (or, if it isn't closed automatically, until the user closes it)
-                for (int i = 0; i < (CloseIt ? 40 : 600); i++)
+                for (int i = 0; i < (CloseIt ? 10 : 300); i++)
                 {
-                    await Task.Delay(CloseIt ? 250 : 2000);
-                    if (UpdateMultiRoblox()) return;
+                    await Task.Delay(CloseIt ? 500 : 2000);
+                    if (await Task.Run(() => UpdateMultiRoblox())) return;
                 }
 
                 Program.Logger.Warn("[MultiRoblox] could not take Roblox's lock");
@@ -1459,42 +1467,10 @@ namespace RBX_Alt_Manager
 
         public bool UpdateMultiRoblox()
         {
-            bool Enabled = General.Get<bool>("EnableMultiRbx");
+            if (General.Get<bool>("EnableMultiRbx"))
+                return RobloxLock.Ensure();
 
-            if (Enabled && rbxMultiMutex == null)
-            {
-                Mutex M = null;
-
-                try
-                {
-                    M = new Mutex(true, "ROBLOX_singletonMutex", out bool CreatedNew);
-
-                    bool Owned = CreatedNew;
-
-                    if (!Owned)
-                        try { Owned = M.WaitOne(TimeSpan.Zero, true); }
-                        catch (AbandonedMutexException) { Owned = true; } // Roblox was closed: the mutex is ours now
-
-                    if (!Owned)
-                    {
-                        M.Dispose(); // not ours: try again later instead of keeping a useless handle
-                        return false;
-                    }
-
-                    rbxMultiMutex = M;
-                }
-                catch
-                {
-                    M?.Dispose();
-                    return false;
-                }
-            }
-            else if (!Enabled && rbxMultiMutex != null)
-            {
-                rbxMultiMutex.Close();
-                rbxMultiMutex = null;
-            }
-
+            RobloxLock.Release();
             return true;
         }
 
