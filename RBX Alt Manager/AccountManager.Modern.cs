@@ -204,14 +204,16 @@ namespace RBX_Alt_Manager
                 int CenterLeft = SideBar.Width + G, CenterRight = HeaderBar.Width - AccountCard.Width - G;
                 int RightLeft = HeaderBar.Width - AccountCard.Width + G, Right = HeaderBar.Width - G;
 
-                foreach (var Icon in new[] { SettingsIcon, AccountControlIcon, RecentGamesIcon, ServerListIcon })
+                // icons start on the line of the account card, "Join selected" ends at the right edge
+                int Left = RightLeft;
+
+                foreach (var Icon in new[] { ServerListIcon, RecentGamesIcon, AccountControlIcon, SettingsIcon })
                 {
-                    Right -= H;
-                    Icon.SetBounds(Right, Y, H, H);
-                    Right -= Gap;
+                    Icon.SetBounds(Left, Y, H, H);
+                    Left += H + Gap;
                 }
 
-                JoinSelectedButton.SetBounds(RightLeft, Y, Math.Max(Px(90), Right - RightLeft), H);
+                JoinSelectedButton.SetBounds(Left, Y, Math.Max(Px(90), Right - Left), H);
 
                 int JobW = Math.Min(Px(280), (CenterRight - CenterLeft) / 3);
                 JobField.SetBounds(CenterRight - JobW, Y, JobW, H);
