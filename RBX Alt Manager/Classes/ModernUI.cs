@@ -35,6 +35,12 @@ namespace RBX_Alt_Manager.Classes
 
         public static float S => Program.Scale;
 
+        /// <summary>One spacing for the whole window (outer margins of every column, header included) so all edges line up.</summary>
+        public static int Gutter => Px(16);
+
+        /// <summary>Height of the first row in every column (search field, buttons above the list, header fields).</summary>
+        public static int RowH => Px(38);
+
         [System.Runtime.InteropServices.DllImport("uxtheme.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
         private static extern int SetWindowTheme(IntPtr hWnd, string pszSubAppName, string pszSubIdList);
 

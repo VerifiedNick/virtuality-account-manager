@@ -94,7 +94,7 @@ namespace RBX_Alt_Manager.Classes
 
             if (Width < Modern.Px(200) || Height < Modern.Px(200)) return;
 
-            int P = Modern.Px(18), W = Width - P * 2, Y = Modern.Px(18), Gap = Modern.Px(10);
+            int P = Modern.Gutter, W = Width - P * 2, Y = Modern.Gutter, Gap = Modern.Px(8);
 
             int Av = Modern.Px(56);
             AvatarR = new Rectangle(P, Y, Av, Av);

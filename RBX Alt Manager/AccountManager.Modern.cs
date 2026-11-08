@@ -115,7 +115,7 @@ namespace RBX_Alt_Manager
                         case AccountState.NeedsLogin: Login++; break;
                     }
 
-                int X = Px(20), W = Px(196), H = HeaderBar.Height;
+                int X = Modern.Gutter, W = SideBar.Width - Modern.Gutter * 2, H = HeaderBar.Height;
 
                 Modern.Text_(G, $"{Total} accounts", Modern.Font(10.5f, FontStyle.Regular, true), new Rectangle(X, H / 2 - Px(20), W, Px(20)), Modern.Text, TextFormatFlags.NoPadding);
 
@@ -187,24 +187,24 @@ namespace RBX_Alt_Manager
             {
                 if (HeaderBar.Width < Px(400)) return;
 
-                int H = Px(40), Y = (HeaderBar.Height - H) / 2, Right = HeaderBar.Width - Px(18);
+                // the header follows the three columns below it: overview | game + job (= list width) | join + icons (= card width)
+                int G = Modern.Gutter, H = Modern.RowH, Y = (HeaderBar.Height - H) / 2, Gap = Px(8);
+
+                int CenterLeft = SideBar.Width + G, CenterRight = HeaderBar.Width - AccountCard.Width - G;
+                int RightLeft = HeaderBar.Width - AccountCard.Width + G, Right = HeaderBar.Width - G;
 
                 foreach (var Icon in new[] { SettingsIcon, AccountControlIcon, RecentGamesIcon, ServerListIcon })
                 {
                     Right -= H;
                     Icon.SetBounds(Right, Y, H, H);
-                    Right -= Px(6);
+                    Right -= Gap;
                 }
 
-                Right -= Px(4);
-                JoinSelectedButton.SetBounds(Right - Px(136), Y, Px(136), H);
-                Right -= Px(136) + Px(8);
+                JoinSelectedButton.SetBounds(RightLeft, Y, Math.Max(Px(90), Right - RightLeft), H);
 
-                JobField.SetBounds(Right - Px(260), Y, Px(260), H);
-                Right -= Px(260) + Px(8);
-
-                int Left = Px(230);
-                GameField.SetBounds(Left, Y, Math.Max(Px(160), Right - Left), H);
+                int JobW = Math.Min(Px(280), (CenterRight - CenterLeft) / 3);
+                JobField.SetBounds(CenterRight - JobW, Y, JobW, H);
+                GameField.SetBounds(CenterLeft, Y, Math.Max(Px(160), JobField.Left - Gap - CenterLeft), H);
             };
         }
 
@@ -244,12 +244,12 @@ namespace RBX_Alt_Manager
             {
                 if (SideBar.Width < Px(60) || SideBar.Height < Px(200)) return;
 
-                int P = Px(12), W = SideBar.Width - P * 2 - 1;
+                int P = Modern.Gutter, W = SideBar.Width - P * 2 - 1;
 
-                SearchField.SetBounds(P, Px(14), W, Px(36));
-                GroupsCaption.SetBounds(P + Px(4), Px(62), W, Px(16));
+                SearchField.SetBounds(P, P, W, Modern.RowH);
+                GroupsCaption.SetBounds(P, SearchField.Bottom + Px(14), W, Px(16));
 
-                int Bottom = SideBar.Height - Px(14);
+                int Bottom = SideBar.Height - P;
 
                 AddAccountButton.SetBounds(P, Bottom - Px(42), W, Px(42));
                 Bottom -= Px(42) + Px(10);
@@ -263,7 +263,9 @@ namespace RBX_Alt_Manager
                     Bottom -= Px(18) + Px(8);
                 }
 
-                GroupsSidebar.SetBounds(Px(4), Px(82), SideBar.Width - Px(8) - 1, Math.Max(Px(40), Bottom - Px(82)));
+                // the group cards have 6 px inner padding, so the control starts 6 px further left to line up with the search field
+                int Top = GroupsCaption.Bottom + Px(6);
+                GroupsSidebar.SetBounds(P - Px(6), Top, SideBar.Width - (P - Px(6)) * 2 - 1, Math.Max(Px(40), Bottom - Top));
             };
         }
 
@@ -320,16 +322,18 @@ namespace RBX_Alt_Manager
             {
                 if (CenterPane.Width < Px(300) || CenterPane.Height < Px(160)) return;
 
-                int P = Px(18), W = CenterPane.Width - P * 2;
+                int P = Modern.Gutter, W = CenterPane.Width - P * 2, RH = Modern.RowH, Gap = Px(8);
 
-                ViewToggleButton.SetBounds(P + W - Px(100), Px(18), Px(100), Px(38));
-                SelectGroupButton.SetBounds(ViewToggleButton.Left - Px(8) - Px(116), Px(18), Px(116), Px(38));
-                CheckBansButton.SetBounds(SelectGroupButton.Left - Px(8) - Px(170), Px(18), Px(170), Px(38));
+                ViewToggleButton.SetBounds(P + W - Px(100), P, Px(100), RH);
+                SelectGroupButton.SetBounds(ViewToggleButton.Left - Gap - Px(116), P, Px(116), RH);
+                CheckBansButton.SetBounds(SelectGroupButton.Left - Gap - Px(170), P, Px(170), RH);
 
-                GroupTitleLabel.SetBounds(P, Px(14), Math.Max(Px(80), CheckBansButton.Left - P - Px(10)), Px(30));
-                GroupSubLabel.SetBounds(P, Px(46), GroupTitleLabel.Width, Px(18));
+                // title + subtitle share the height of the button row
+                GroupTitleLabel.SetBounds(P, P - Px(4), Math.Max(Px(80), CheckBansButton.Left - P - Px(10)), Px(28));
+                GroupSubLabel.SetBounds(P, P + RH - Px(16), GroupTitleLabel.Width, Px(16));
 
-                ListFrame.SetBounds(P, Px(74), W, Math.Max(Px(60), CenterPane.Height - Px(74) - Px(40)));
+                int ListTop = P + RH + Px(14);
+                ListFrame.SetBounds(P, ListTop, W, Math.Max(Px(60), CenterPane.Height - ListTop - Px(40)));
                 TipLabel.SetBounds(P, ListFrame.Bottom + Px(10), W, Px(18));
             };
 
