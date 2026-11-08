@@ -740,7 +740,11 @@ namespace RBX_Alt_Manager
         private bool UpdatingCardPresence;
         private DateTime LastCardPresence;
 
-        /// <summary>Online status for every card (not only the rows the list happens to show).</summary>
+        /// <summary>
+        /// Online status. A quick pass (view change) refreshes the accounts you are looking at;
+        /// the timer pass (Force) refreshes EVERY account, so the header totals ("in game", "online") stay
+        /// correct even for accounts in other groups that aren't on screen right now.
+        /// </summary>
         private async Task UpdateCardPresence(bool Force = false)
         {
             if (UpdatingCardPresence || Grid == null || !General.Get<bool>("ShowPresence")) return;
@@ -751,7 +755,8 @@ namespace RBX_Alt_Manager
 
             try
             {
-                var Ids = Grid.Shown.Select(a => a.UserID).Where(id => id > 0).Distinct().ToList();
+                var Source = Force ? (IEnumerable<Account>)AccountsList : Grid.Shown;
+                var Ids = Source.Select(a => a.UserID).Where(id => id > 0).Distinct().ToList();
 
                 for (int i = 0; i < Ids.Count; i += 50)
                     try { await Presence.UpdatePresence(Ids.Skip(i).Take(50).ToArray()); } catch { }

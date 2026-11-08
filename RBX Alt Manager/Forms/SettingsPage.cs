@@ -100,6 +100,12 @@ namespace RBX_Alt_Manager.Forms
 
             Number(S, "Recent games to remember", "How many games the recent games page keeps.", 1, 30,
                 () => General.Get<decimal>("MaxRecentGames"), V => { General.Set("MaxRecentGames", V.ToString(CultureInfo.InvariantCulture)); Save(); });
+
+            Toggle(S, "Check for updates", $"Looks at Virtuality Manager on GitHub when it starts and offers to update itself. You have build {RBX_Alt_Manager.Classes.AppUpdate.BuildNumber}.",
+                () => General.Get<bool>("CheckForUpdates"), V => { General.Set("CheckForUpdates", Bool(V)); Save(); });
+
+            Button(S, "Check for updates now", "Downloads the newest version from GitHub and replaces this one (needs the repo to be public).", "Check now", ModernButtonStyle.Secondary,
+                () => RBX_Alt_Manager.Classes.AppUpdate.CheckNow());
         }
 
         private void BuildJoining()

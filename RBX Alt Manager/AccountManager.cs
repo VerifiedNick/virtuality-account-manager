@@ -376,7 +376,6 @@ namespace RBX_Alt_Manager
 
         #endregion
 
-        private static readonly bool UpstreamUpdates = false;
         private readonly static string SaveFilePath = Path.Combine(Environment.CurrentDirectory, "AccountData.json");
         private readonly static string RecentGamesFilePath = Path.Combine(Environment.CurrentDirectory, "RecentGames.json"); // i shouldve combined everything that isnt accountdata into one file but oh well im too lazy : |
 
@@ -840,58 +839,8 @@ namespace RBX_Alt_Manager
 
             // Virtuality Manager is its own app: the original's updater would replace it with the original Roblox Account Manager
             // (and download a program from someone else's GitHub). Updates come only as a new Virtuality Manager.exe.
-            if (UpstreamUpdates && General.Get<bool>("CheckForUpdates"))
-            {
-                Task.Run(() =>
-                {
-                    try
-                    {
-                        ServicePointManager.Expect100Continue = true;
-                        ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls | SecurityProtocolType.Tls11 | SecurityProtocolType.Tls12 | SecurityProtocolType.Ssl3;
-
-                        WebClient WC = new WebClient();
-                        Assembly assembly = Assembly.GetExecutingAssembly();
-                        FileVersionInfo fvi = FileVersionInfo.GetVersionInfo(assembly.Location);
-                        WC.Headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/95.0.4638.54 Safari/537.36";
-                        string Releases = WC.DownloadString("https://api.github.com/repos/ic3w0lf22/Roblox-Account-Manager/releases/latest");
-                        Match match = Regex.Match(Releases, @"""tag_name"":\s*""?([^""]+)");
-
-                        if (match.Success)
-                        {
-                            string Current = fvi.FileVersion.TrimEnd('.', '0').Replace(".", string.Empty);
-                            string New = match.Groups[1].Value.TrimEnd('.', '0').Replace(".", string.Empty);
-
-                            if (Current.Length > New.Length)
-                                New = New.PadRight(Current.Length, '0');
-                            else if (New.Length > Current.Length)
-                                Current = Current.PadRight(New.Length, '0');
-
-                            if (double.TryParse(New, out double NV) && double.TryParse(Current, out double CV) && NV > CV)
-                            {
-                                bool ShouldUpdate = Utilities.YesNoPrompt("Roblox Account Manager", "An update is available", "Would you like to update now?");
-
-                                if (ShouldUpdate)
-                                {
-                                    File.WriteAllBytes(AFN, File.ReadAllBytes(Application.ExecutablePath));
-                                    Process.Start(AFN, "-update");
-                                    Environment.Exit(1);
-                                    //if (File.Exists(AFN))
-                                    //{
-                                    //    Process.Start(AFN, "skip");
-                                    //    Environment.Exit(1);
-                                    //}
-                                    //else
-                                    //{
-                                    //    ModernDialog.Show("You do not have the auto updater downloaded, go to the github page and download the latest release.");
-                                    //    Process.Start("https://github.com/ic3w0lf22/Roblox-Account-Manager/releases");
-                                    //}
-                                }
-                            }
-                        }
-                    }
-                    catch { }
-                });
-            }
+            if (General.Get<bool>("CheckForUpdates"))
+                AppUpdate.CheckOnStartup(); // checks Virtuality Manager's own GitHub repo and offers to self-update
 
             // the aging alert (last use > 20 days) is now shown in the LAST USED column
 

@@ -145,12 +145,21 @@ namespace RBX_Alt_Manager
                 return;
             }
 
+            // self-update: this exe was downloaded to Update\ and launched to replace the old one
+            int ApplyIndex = Array.IndexOf(Arguments, "-applyupdate");
+            if (ApplyIndex >= 0 && ApplyIndex + 2 < Arguments.Length && int.TryParse(Arguments[ApplyIndex + 2], out int UpdPid))
+            {
+                RBX_Alt_Manager.Classes.AppUpdate.ApplyUpdateStep(Arguments[ApplyIndex + 1], UpdPid);
+                return;
+            }
+
             // "-after <pid>": started by "restore backup" – wait until the old window is really gone
             int AfterIndex = Array.IndexOf(Arguments, "-after");
             if (AfterIndex >= 0 && AfterIndex + 1 < Arguments.Length && int.TryParse(Arguments[AfterIndex + 1], out int OldPid))
                 try { Process.GetProcessById(OldPid).WaitForExit(15000); } catch { }
 
             SetupDataFolder();
+            RBX_Alt_Manager.Classes.AppUpdate.CleanupStaging();
             RBX_Alt_Manager.Classes.AppIcon.ApplyAsDefault();
 
             try
