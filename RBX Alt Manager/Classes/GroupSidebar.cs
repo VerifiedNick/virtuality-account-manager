@@ -214,7 +214,6 @@ namespace RBX_Alt_Manager.Classes
                     }
 
                     Badge(Item.Banned, Modern.Danger, Modern.DangerBg, Modern.DangerLine);
-                    Badge(Item.NeedLogin, Modern.Warn, Color.FromArgb(24, 18, 4), Color.FromArgb(80, 60, 15));
                 }
 
                 if (Item.Key != null)
