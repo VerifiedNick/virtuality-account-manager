@@ -262,7 +262,7 @@ namespace RBX_Alt_Manager
             Grid = new AccountGrid() { Dock = DockStyle.Fill, Visible = CardView };
             Grid.GetSelection = () => new HashSet<Account>(AccountsView.SelectedObjects.Cast<object>().OfType<Account>());
             Grid.SetSelection = List => { AccountsView.SelectedObjects = List; Grid.Invalidate(); };
-            Grid.JoinClicked = A => JoinServer_Click(Grid, EventArgs.Empty);
+            Grid.JoinClicked = A => { SelectedAccount = A; JoinServer_Click(Grid, EventArgs.Empty); };
             Grid.JoinMainClicked = JoinMainWith;
             Grid.ContextRequested = (A, P) => AccountsStrip.Show(Grid, P);
             Grid.SectionTitle = GroupTitleOf;

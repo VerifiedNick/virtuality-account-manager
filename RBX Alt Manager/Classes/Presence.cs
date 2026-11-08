@@ -20,12 +20,39 @@ namespace RBX_Alt_Manager.Classes
 
         public static RestClient PresenceClient = new RestClient("https://presence.roblox.com/");
 
+        /// <summary>Asks without a cookie first (as RAM always did); if Roblox wants a login for it, asks again as the last used account.</summary>
+        private static async Task<RestResponse> Request(long[] UserIds)
+        {
+            var Response = await PresenceClient.ExecuteAsync(new RestRequest("v1/presence/users", Method.Post).AddJsonBody(new { userIds = UserIds }));
+
+            Account Auth = AccountManager.LastValidAccount;
+
+            if (Response.IsSuccessful || Auth == null) return Response;
+
+            RestRequest Make(string Token)
+            {
+                var R = Auth.MakeRequest("v1/presence/users", Method.Post).AddJsonBody(new { userIds = UserIds });
+                if (!string.IsNullOrEmpty(Token)) R.AddHeader("X-CSRF-TOKEN", Token);
+                return R;
+            }
+
+            var Second = await PresenceClient.ExecuteAsync(Make(Auth.CSRFToken));
+
+            if ((int)Second.StatusCode == 403 && Second.Headers?.FirstOrDefault(h => string.Equals(h.Name, "x-csrf-token", StringComparison.OrdinalIgnoreCase))?.Value is string NewToken)
+            {
+                Auth.CSRFToken = NewToken;
+                Second = await PresenceClient.ExecuteAsync(Make(NewToken));
+            }
+
+            return Second.IsSuccessful ? Second : Response;
+        }
+
         public static async Task UpdatePresence(params long[] UserIds)
         {
             if (!Utilities.IsConnectedToInternet()) return;
 
             List<Account> Updated = new List<Account>();
-            var Response = await PresenceClient.PostAsync(new RestRequest("v1/presence/users", Method.Post).AddJsonBody(new { userIds = UserIds }));
+            var Response = await Request(UserIds);
 
             if (Response.IsSuccessful && JsonConvert.DeserializeObject(Response.Content) is JObject Data && Data.ContainsKey("userPresences"))
             {
@@ -46,7 +73,7 @@ namespace RBX_Alt_Manager.Classes
             if (!Utilities.IsConnectedToInternet()) return null;
 
             var Dict = new Dictionary<long, UserPresence>();
-            var Response = await PresenceClient.PostAsync(new RestRequest("v1/presence/users", Method.Post).AddJsonBody(new { userIds = UserIds }));
+            var Response = await Request(UserIds);
 
             if (Response.IsSuccessful && JsonConvert.DeserializeObject(Response.Content) is JObject Data && Data.ContainsKey("userPresences"))
             {
