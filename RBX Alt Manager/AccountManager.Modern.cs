@@ -44,11 +44,7 @@ namespace RBX_Alt_Manager
         private ModernLabel GroupsCaption, GroupTitleLabel, GroupSubLabel, TipLabel;
         private AccountCardPanel AccountCard;
         private static int AccountCardWidth => Px(356);
-        private readonly System.Windows.Forms.Timer AccountCardAnim = new System.Windows.Forms.Timer() { Interval = 8 };
-        private readonly System.Diagnostics.Stopwatch AccountCardWatch = new System.Diagnostics.Stopwatch();
         private Panel AccountCardHost;
-        private int AccountCardFrom, AccountCardTo;
-        private double AccountCardMs;
         private bool AccountCardOpen;
         private ContextMenuStrip MoreToolsMenu;
         private ToolStripMenuItem HideUsernamesMenuItem;
@@ -93,11 +89,10 @@ namespace RBX_Alt_Manager
             CenterPane = new LinePanel() { Dock = DockStyle.Fill, BackColor = Modern.Bg };
             AccountCard = new AccountCardPanel() { Dock = DockStyle.None, Width = AccountCardWidth };
 
-            // the panel keeps its full width and never re-lays out; the host around it grows from 0 and clips it, so it really slides in from the right edge
+            // host around the panel: width 0 and hidden while nothing is selected
             AccountCardHost = new Panel() { Dock = DockStyle.Right, Width = 0, Visible = false, BackColor = Modern.Panel, Tag = "NoScaling" };
             AccountCardHost.Controls.Add(AccountCard);
             AccountCardHost.Layout += (s, e) => AccountCard.SetBounds(AccountCardHost.Width - AccountCardWidth, 0, AccountCardWidth, AccountCardHost.Height);
-            AccountCardAnim.Tick += AccountCardAnim_Tick;
 
             // docking happens in reverse order: header first, then the sides, the list takes the rest
             Shell.Controls.Add(CenterPane);
@@ -1100,46 +1095,20 @@ namespace RBX_Alt_Manager
 
             var Selected = AccountsView.SelectedObjects.Cast<object>().OfType<Account>().ToList();
 
-            // nothing selected: the panel is not shown at all, instead of a "no account selected" placeholder; it slides in once something is picked.
-            // While it slides out it keeps showing the last account (cleared when it is gone), so it does not flash an empty state.
+            // nothing selected: the panel is not shown at all (no "no account selected" placeholder); it appears as soon as something is picked.
+            // No animation: the list is resized exactly once, so nothing flickers or jumps.
             bool ShouldBeOpen = Selected.Count > 0;
 
-            if (ShouldBeOpen) AccountCard.SetAccounts(Selected);
+            AccountCard.SetAccounts(ShouldBeOpen ? Selected : null);
 
             if (ShouldBeOpen == AccountCardOpen) return;
 
             AccountCardOpen = ShouldBeOpen;
 
-            if (AccountCardOpen) AccountCardHost.Visible = true; // becomes invisible again only once the close animation reaches 0
-
-            AccountCardFrom = AccountCardHost.Width;
-            AccountCardTo = AccountCardOpen ? AccountCardWidth : 0;
-            AccountCardMs = AccountCardOpen ? 460 : 280;
-            AccountCardWatch.Restart();
-            AccountCardAnim.Start();
-        }
-
-        private void AccountCardAnim_Tick(object sender, EventArgs e)
-        {
-            if (AccountCardHost == null) { AccountCardAnim.Stop(); return; }
-
-            // time based, so it takes the same time on every PC however fast it can redraw; fast start, long soft landing
-            double T = Math.Min(1.0, AccountCardWatch.Elapsed.TotalMilliseconds / AccountCardMs);
-            double Eased = 1.0 - Math.Pow(1.0 - T, 4);
-
-            int W = AccountCardFrom + (int)Math.Round((AccountCardTo - AccountCardFrom) * Eased);
-            if (AccountCardHost.Width != W) AccountCardHost.Width = W;
-
-            if (T < 1.0) return;
-
-            AccountCardAnim.Stop();
-            AccountCardWatch.Stop();
-
-            if (!AccountCardOpen)
-            {
-                AccountCardHost.Visible = false;
-                AccountCard.SetAccounts(null);
-            }
+            Shell.SuspendLayout();
+            AccountCardHost.Width = AccountCardOpen ? AccountCardWidth : 0;
+            AccountCardHost.Visible = AccountCardOpen;
+            Shell.ResumeLayout(true);
         }
 
         #endregion
