@@ -1351,7 +1351,16 @@ namespace RBX_Alt_Manager
             Grid.Invalidate();
             AccountCard.JoinTarget = JoinTargetName;
             AccountCard.Invalidate();
+            TargetsChanged?.Invoke();
         }
+
+        /// <summary>Raised when "Friend requests go to" or "Join button joins" changed (the Settings page shows them).</summary>
+        public event Action TargetsChanged;
+
+        public string FriendTargetText => FriendTargetName;
+        public string JoinTargetText => JoinTargetName;
+        public void ChangeFriendTargetFromSettings() => ChangeMainAccount();
+        public void ChooseJoinTargetFromSettings(Control Owner) => ShowJoinTargetMenu(Owner, new Point(0, Owner.Height));
 
         private List<(Account Account, string Group)> LastMove;
         private readonly System.Windows.Forms.Timer MoveHintTimer = new System.Windows.Forms.Timer() { Interval = 9000 };
@@ -1818,6 +1827,7 @@ namespace RBX_Alt_Manager
             Grid.MainName = JoinTargetName;
             AccountCard.JoinTarget = JoinTargetName;
             Grid.Invalidate();
+            TargetsChanged?.Invoke();
         }
 
         #endregion

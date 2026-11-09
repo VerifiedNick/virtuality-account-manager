@@ -57,7 +57,7 @@ namespace RBX_Alt_Manager.Classes
             BackColor = Modern.Panel;
             Tag = "NoScaling";
 
-            foreach (var B in new[] { CopyUser, CopyPassword, ShowPassword, Login, AddFriend, OpenBrowser, Follow, MoreTools, ChangeMain, ChangeJoin, EditNote, Remove })
+            foreach (var B in new[] { CopyUser, CopyPassword, ShowPassword, Login, AddFriend, OpenBrowser, Follow, MoreTools, EditNote, Remove })
                 Controls.Add(B);
 
             List = new SelectionList(this) { Visible = false };
@@ -194,13 +194,8 @@ namespace RBX_Alt_Manager.Classes
             MoreTools.SetBounds(P + Half + Gap, Y, W - Half - Gap, BH);
             Y += BH + Modern.Px(10);
 
-            int ChangeW = Modern.Px(64);
-            MainRowR = new Rectangle(P, Y, W - ChangeW - Modern.Px(6), Modern.Px(28));
-            ChangeMain.SetBounds(P + W - ChangeW, Y, ChangeW, Modern.Px(28));
-            Y += Modern.Px(28) + Modern.Px(2);
-            JoinRowR = new Rectangle(P, Y, W - ChangeW - Modern.Px(6), Modern.Px(28));
-            ChangeJoin.SetBounds(P + W - ChangeW, Y, ChangeW, Modern.Px(28));
-            Y += Modern.Px(28);
+            // "Friend requests go to" / "Join button joins" are global: they live in Settings → Joining, not on a single account
+            Y -= Modern.Px(10);
 
             int BottomH = Modern.Px(36);
             int BottomY = Math.Max(Y + Modern.Px(14), Height - P - BottomH);
@@ -239,13 +234,8 @@ namespace RBX_Alt_Manager.Classes
             MoreTools.SetBounds(P + Half + Gap, Y, W - Half - Gap, BH);
             Y += BH + Modern.Px(10);
 
-            int ChangeW = Modern.Px(64);
-            MainRowR = new Rectangle(P, Y, W - ChangeW - Modern.Px(6), Modern.Px(28));
-            ChangeMain.SetBounds(P + W - ChangeW, Y, ChangeW, Modern.Px(28));
-            Y += Modern.Px(28) + Modern.Px(2);
-            JoinRowR = new Rectangle(P, Y, W - ChangeW - Modern.Px(6), Modern.Px(28));
-            ChangeJoin.SetBounds(P + W - ChangeW, Y, ChangeW, Modern.Px(28));
-            Y += Modern.Px(28);
+            // "Friend requests go to" / "Join button joins" are global: they live in Settings → Joining, not on a single account
+            Y -= Modern.Px(10);
 
             int BottomY = Math.Max(Y + Modern.Px(14), Height - P - BottomH);
             EditNote.SetBounds(P, BottomY, Half, BottomH);
@@ -338,7 +328,6 @@ namespace RBX_Alt_Manager.Classes
                 Modern.Text_(G, Need > 0 ? $"{Need} TO LOG IN" : $"{Accounts.Count} SELECTED", Modern.Font(7.75f, FontStyle.Regular, true), ListCaptionR, Need > 0 ? Modern.Warn : Modern.Sub, TextFormatFlags.NoPadding);
 
                 TextRenderer.DrawText(G, "One login window at a time: do the captcha, then the next account. Each row has its own Login button too.", Modern.Font(8f), LoginHintR, Modern.Sub, TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix | TextFormatFlags.Top);
-                PaintMainRow(G);
                 return;
             }
 
@@ -393,22 +382,6 @@ namespace RBX_Alt_Manager.Classes
 
             TextRenderer.DrawText(G, "Opens the Roblox login with username and password filled in. You only do the captcha / 2-step code.", Modern.Font(8f), LoginHintR, Modern.Sub, TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix | TextFormatFlags.Top);
 
-            PaintMainRow(G);
-        }
-
-        private void PaintMainRow(Graphics G)
-        {
-            // main account row + join target row: same caption column, names start on one line
-            Font MF = Modern.Font(8.5f), NF = Modern.Font(8.5f, FontStyle.Regular, true);
-            string Lead = "Friend requests go to", JoinLead = "Join button joins";
-            int LW = Math.Max(TextRenderer.MeasureText(G, Lead, MF, Size.Empty, TextFormatFlags.NoPadding).Width,
-                              TextRenderer.MeasureText(G, JoinLead, MF, Size.Empty, TextFormatFlags.NoPadding).Width) + Modern.Px(10);
-
-            Modern.Text_(G, Lead, MF, MainRowR, Modern.Sub, TextFormatFlags.NoPadding);
-            Modern.Text_(G, string.IsNullOrEmpty(FriendTarget) ? "not chosen yet" : FriendTarget, NF, new Rectangle(MainRowR.X + LW, MainRowR.Y, Math.Max(0, MainRowR.Width - LW), MainRowR.Height), string.IsNullOrEmpty(FriendTarget) ? Modern.Sub : Modern.Text, TextFormatFlags.NoPadding | TextFormatFlags.EndEllipsis);
-
-            Modern.Text_(G, JoinLead, MF, JoinRowR, Modern.Sub, TextFormatFlags.NoPadding);
-            Modern.Text_(G, string.IsNullOrEmpty(JoinTarget) ? "not chosen yet" : JoinTarget, NF, new Rectangle(JoinRowR.X + LW, JoinRowR.Y, Math.Max(0, JoinRowR.Width - LW), JoinRowR.Height), string.IsNullOrEmpty(JoinTarget) ? Modern.Sub : Modern.Text, TextFormatFlags.NoPadding | TextFormatFlags.EndEllipsis);
         }
 
         /// <summary>Scrollable rows of the selected accounts: picture, name, status and a Login button per account.</summary>

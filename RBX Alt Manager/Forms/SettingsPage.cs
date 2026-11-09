@@ -118,6 +118,27 @@ namespace RBX_Alt_Manager.Forms
         {
             var S = Section("Joining", "What happens when you press Join.");
 
+            // valid for every account at once: set here, or right click a "Join …" button on any card
+            ModernLabel FriendDesc = null, JoinDesc = null;
+            string Shown(string V) => string.IsNullOrEmpty(V) ? "nobody" : V;
+
+            (_, FriendDesc) = Button(S, "Friend requests go to", "", "Change…", ModernButtonStyle.Secondary, () => AccountManager.Instance.ChangeFriendTargetFromSettings());
+            ModernButton JoinBtn = null;
+            (JoinBtn, JoinDesc) = Button(S, "Join button joins", "", "Choose…", ModernButtonStyle.Secondary, () => AccountManager.Instance.ChooseJoinTargetFromSettings(JoinBtn));
+
+            void ShowTargets()
+            {
+                var M = AccountManager.Instance;
+                if (M == null) return;
+
+                FriendDesc.Text = $"Account that receives the friend requests: {Shown(M.FriendTargetText)}. Empty = nobody.";
+                JoinDesc.Text = $"The \"Join …\" button on every account joins: {Shown(M.JoinTargetText)}. Empty = a plain \"Join\" that joins the game itself.";
+            }
+
+            Refreshers.Add(ShowTargets);
+            if (AccountManager.Instance != null) AccountManager.Instance.TargetsChanged += () => { if (!IsDisposed && IsHandleCreated) BeginInvoke((MethodInvoker)ShowTargets); };
+            ShowTargets();
+
             ModernToggle Async = null;
             FieldBox Delay = null;
 
