@@ -186,17 +186,24 @@ namespace RBX_Alt_Manager.Classes
             return new Rectangle(Card.X + Modern.Px(12), Card.Bottom - Modern.Px(12) - Modern.Px(30), Card.Width - Modern.Px(24), Modern.Px(30));
         }
 
+        private bool NoTarget => string.IsNullOrEmpty(MainName);
+
         private (Rectangle Join, Rectangle Main) Buttons(Rectangle Card)
         {
             if (RowMode_)
             {
                 int RH_ = Modern.Px(32), RY = Card.Y + (Card.Height - RH_) / 2, RMainW = Modern.Px(170), RJoinW = Modern.Px(140);
+                if (NoTarget) { int Full_ = RJoinW + Modern.Px(8) + RMainW; return (new Rectangle(Card.Right - Modern.Px(14) - Full_, RY, Full_, RH_), Rectangle.Empty); }
+
                 var RMain = new Rectangle(Card.Right - Modern.Px(14) - RMainW, RY, RMainW, RH_);
                 return (new Rectangle(RMain.X - Modern.Px(8) - RJoinW, RY, RJoinW, RH_), RMain);
             }
 
             int P = Modern.Px(12), H = Modern.Px(30), G = Modern.Px(8);
             int Y = Card.Bottom - P - H, W = Card.Width - P * 2;
+            // no second account to join: a single full-width "Join" bar instead of two "Join" buttons
+            if (NoTarget) return (new Rectangle(Card.X + P, Y, W, H), Rectangle.Empty);
+
             int JoinW = Math.Max(Modern.Px(56), W * 36 / 100);
 
             return (new Rectangle(Card.X + P, Y, JoinW, H), new Rectangle(Card.X + P + JoinW + G, Y, W - JoinW - G, H));
@@ -363,7 +370,7 @@ namespace RBX_Alt_Manager.Classes
             var (JoinR, MainR) = Buttons(R);
 
             DrawButton(G, JoinR, "Join", false, !Banned && A == HoverAccount && HoverButton == 1, Banned);
-            DrawButton(G, MainR, MainLabel, false, !Banned && A == HoverAccount && HoverButton == 2, Banned);
+            if (!MainR.IsEmpty) DrawButton(G, MainR, MainLabel, false, !Banned && A == HoverAccount && HoverButton == 2, Banned);
         }
 
         /// <summary>List view row: picture, name + e-mail, status, last used, note, and the same buttons as the card.</summary>
@@ -457,7 +464,7 @@ namespace RBX_Alt_Manager.Classes
 
             var (JoinR, MainR) = Buttons(R);
             DrawButton(G, JoinR, "Join", false, !Banned && A == HoverAccount && HoverButton == 1, Banned);
-            DrawButton(G, MainR, MainLabel, false, !Banned && A == HoverAccount && HoverButton == 2, Banned);
+            if (!MainR.IsEmpty) DrawButton(G, MainR, MainLabel, false, !Banned && A == HoverAccount && HoverButton == 2, Banned);
         }
 
         private static string FirstLine(string Text) => (Text ?? string.Empty).Split('\n')[0].Trim();
@@ -486,7 +493,7 @@ namespace RBX_Alt_Manager.Classes
                 var (JoinR, MainR) = Buttons(R);
 
                 if (JoinR.Contains(P)) return (E.Account, 1);
-                if (MainR.Contains(P)) return (E.Account, 2);
+                if (!MainR.IsEmpty && MainR.Contains(P)) return (E.Account, 2);
 
                 return (E.Account, 0);
             }
