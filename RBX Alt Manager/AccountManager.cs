@@ -780,6 +780,8 @@ namespace RBX_Alt_Manager
         {
             PasswordPanel.Dock = DockStyle.Fill;
 
+            RestoreSideWidth();
+
             GroupImages.ImagesChanged += GroupImages_ImagesChanged;
             GroupImages.Initialize();
 

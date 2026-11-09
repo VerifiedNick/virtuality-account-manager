@@ -43,6 +43,13 @@ namespace RBX_Alt_Manager
         private readonly System.Windows.Forms.Timer CardPresenceTimer = new System.Windows.Forms.Timer() { Interval = 60000 };
         private ModernLabel GroupsCaption, GroupTitleLabel, GroupSubLabel, TipLabel;
         private AccountCardPanel AccountCard;
+        private SideGrip SideBarGrip;
+        private ModernButton SearchIconButton;
+        private int SideExpandedWidth;
+        private bool SideCompact;
+        private int SideMin => Px(76);
+        private int SideMax => Px(420);
+        private int SideCompactBelow => Px(150);
         private static int AccountCardWidth => Px(356);
         private Panel AccountCardHost;
         private bool AccountCardOpen;
@@ -140,6 +147,13 @@ namespace RBX_Alt_Manager
                     }
 
                 int X = Modern.Gutter, W = SideBar.Width - Modern.Gutter * 2, H = HeaderBar.Height;
+
+                // collapsed side bar: only the number, centered
+                if (SideBar.Width < SideCompactBelow)
+                {
+                    Modern.Text_(G, $"{Total}", Modern.Font(10.5f, FontStyle.Regular, true), new Rectangle(0, 0, SideBar.Width, H), Modern.Text, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
+                    return;
+                }
 
                 Modern.Text_(G, $"{Total} accounts", Modern.Font(10.5f, FontStyle.Regular, true), new Rectangle(X, H / 2 - Px(20), W, Px(20)), Modern.Text, TextFormatFlags.NoPadding);
 
@@ -317,7 +331,22 @@ namespace RBX_Alt_Manager
             Controls.Remove(DownloadProgressBar);
             Controls.Remove(DLChromiumLabel);
 
-            SideBar.Controls.AddRange(new Control[] { SearchField, GroupsCaption, NewGroupButton, GroupsSidebar, DLChromiumLabel, DownloadProgressBar, AddAccountButton });
+            SearchIconButton = new ModernButton() { Icon = IconKind.Search, IconOnly = true, Visible = false };
+            SearchIconButton.Click += (s, e) => { SetSideWidth(SideExpandedWidth > 0 ? SideExpandedWidth : Px(266), true); SearchBox.Focus(); };
+            SaveTooltip.SetToolTip(SearchIconButton, "Search accounts (opens the side bar)");
+
+            SideBar.Controls.AddRange(new Control[] { SearchField, SearchIconButton, GroupsCaption, NewGroupButton, GroupsSidebar, DLChromiumLabel, DownloadProgressBar, AddAccountButton });
+
+            // drag handle on the right edge: wider / narrower, snaps to "icons only" like Discord
+            SideBarGrip = new SideGrip() { Dock = DockStyle.Right, Width = Px(6) };
+            SideBarGrip.CurrentWidth = () => SideBar.Width;
+            SideBarGrip.WidthRequested = W => SetSideWidth(W, false);
+            SideBarGrip.DragFinished = () => { SideExpandedWidth = SideCompact ? SideExpandedWidth : SideBar.Width; SaveSideWidth(); };
+            SideBarGrip.Toggled = () => { SetSideWidth(SideCompact ? (SideExpandedWidth > 0 ? SideExpandedWidth : Px(266)) : SideMin, true); SaveSideWidth(); };
+            SideBar.Controls.Add(SideBarGrip);
+            SideBarGrip.BringToFront();
+
+            GroupsSidebar.HoverTextChanged += (s, T) => { if (SideCompact) SaveTooltip.SetToolTip(GroupsSidebar, string.IsNullOrEmpty(T) ? " " : T); };
 
             DownloadProgressBar.VisibleChanged += (s, e) => SideBar.PerformLayout();
             DLChromiumLabel.VisibleChanged += (s, e) => SideBar.PerformLayout();
@@ -326,16 +355,41 @@ namespace RBX_Alt_Manager
             {
                 if (SideBar.Width < Px(60) || SideBar.Height < Px(200)) return;
 
-                int P = Modern.Gutter, W = SideBar.Width - P * 2 - 1;
+                // collapsed: only icons (picture of every group, plus, search); expanded: the full side bar
+                bool C = SideBar.Width < SideCompactBelow;
+
+                if (C != SideCompact)
+                {
+                    SideCompact = C;
+                    GroupsSidebar.Compact = C;
+                    SaveTooltip.SetToolTip(GroupsSidebar, C ? " " : "Click: show group · Double click: select all accounts of the group · Right click: change picture");
+                }
+
+                int P = C ? Px(10) : Modern.Gutter, W = SideBar.Width - P * 2 - 1;
+
+                SearchField.Visible = !C;
+                GroupsCaption.Visible = !C;
+                SearchIconButton.Visible = C;
+                NewGroupButton.IconOnly = C;
+                AddAccountButton.IconOnly = C;
 
                 SearchField.SetBounds(P, P, W, Modern.RowH);
-                GroupsCaption.SetBounds(P, SearchField.Bottom + Px(10), W - Px(120), Px(26));
-                NewGroupButton.SetBounds(P + W - Px(116), SearchField.Bottom + Px(10), Px(116), Px(26));
+                SearchIconButton.SetBounds(P, P, W, Modern.RowH);
+
+                if (C)
+                    NewGroupButton.SetBounds(P, SearchIconButton.Bottom + Px(10), W, Px(32));
+                else
+                {
+                    GroupsCaption.SetBounds(P, SearchField.Bottom + Px(10), W - Px(120), Px(26));
+                    NewGroupButton.SetBounds(P + W - Px(116), SearchField.Bottom + Px(10), Px(116), Px(26));
+                }
 
                 int Bottom = SideBar.Height - P;
 
                 AddAccountButton.SetBounds(P, Bottom - Px(42), W, Px(42));
                 Bottom -= Px(42) + Px(10);
+
+                DLChromiumLabel.Visible = DLChromiumLabel.Visible && !C;
 
                 if (DownloadProgressBar.Visible || DLChromiumLabel.Visible)
                 {
@@ -347,9 +401,57 @@ namespace RBX_Alt_Manager
                 }
 
                 // the group cards have 6 px inner padding, so the control starts 6 px further left to line up with the search field
-                int Top = GroupsCaption.Bottom + Px(6);
+                int Top = (C ? NewGroupButton.Bottom : GroupsCaption.Bottom) + Px(6);
                 GroupsSidebar.SetBounds(P - Px(6), Top, SideBar.Width - (P - Px(6)) * 2 - 1, Math.Max(Px(40), Bottom - Top));
             };
+        }
+
+        /// <summary>Sets the side bar width (clamped). While dragging it snaps: close to the minimum = icons only, otherwise never below a readable width.</summary>
+        private void SetSideWidth(int Width, bool Final)
+        {
+            if (SideBar == null) return;
+
+            int W = Math.Max(SideMin, Math.Min(SideMax, Width));
+
+            if (W < Px(130)) W = SideMin;
+            else if (W < Px(200)) W = Px(200);
+
+            if (W == SideBar.Width) return;
+
+            if (W >= SideCompactBelow) SideExpandedWidth = W;
+
+            Shell.SuspendLayout();
+            SideBar.Width = W;
+            Shell.ResumeLayout(true);
+
+            SideBar.PerformLayout();
+            HeaderBar.PerformLayout();
+            HeaderBar.Invalidate();
+
+            if (Final) SaveSideWidth();
+        }
+
+        private void SaveSideWidth()
+        {
+            try
+            {
+                General.Set("SidebarWidth", SideBar.Width.ToString());
+                if (SideExpandedWidth > 0) General.Set("SidebarExpandedWidth", SideExpandedWidth.ToString());
+                IniSettings.Save("RAMSettings.ini");
+            }
+            catch { }
+        }
+
+        private void RestoreSideWidth()
+        {
+            try
+            {
+                if (General == null || !General.Exists("SidebarWidth")) return;
+
+                if (General.Exists("SidebarExpandedWidth") && int.TryParse(General.Get("SidebarExpandedWidth"), out int Ex)) SideExpandedWidth = Ex;
+                if (int.TryParse(General.Get("SidebarWidth"), out int W)) SetSideWidth(W, false);
+            }
+            catch { }
         }
 
         private void BuildCenter()

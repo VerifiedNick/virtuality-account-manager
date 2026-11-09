@@ -58,6 +58,13 @@ namespace RBX_Alt_Manager.Classes
         private int Gap => (int)(2 * S);
         private int Pad => (int)(6 * S);
 
+        private bool Compact_;
+        /// <summary>Narrow side bar: only the group pictures are shown (name and count come as a tooltip).</summary>
+        public bool Compact { get => Compact_; set { if (Compact_ == value) return; Compact_ = value; Invalidate(); } }
+
+        /// <summary>Text for the tooltip of the group under the mouse (compact mode); empty when none.</summary>
+        public event EventHandler<string> HoverTextChanged;
+
         public GroupSidebar()
         {
             DoubleBuffered = true;
@@ -190,6 +197,20 @@ namespace RBX_Alt_Manager.Classes
                         G.DrawRectangle(Pen, R.X + 1, R.Y + 1, R.Width - 2, R.Height - 2);
 
                 int IconSize = R.Height - (int)(14 * S);
+
+                if (Compact_)
+                {
+                    IconSize = Math.Min(IconSize, R.Width - (int)(14 * S));
+                    DrawIcon(G, Item, new Rectangle(R.X + (R.Width - IconSize) / 2, R.Y + (R.Height - IconSize) / 2, IconSize, IconSize));
+
+                    // banned accounts in the group: small red dot in the corner
+                    if (Item.Key != null && Item.Banned > 0)
+                        using (var B = new SolidBrush(Modern.Danger))
+                            G.FillEllipse(B, R.Right - (int)(12 * S), R.Y + (int)(4 * S), (int)(8 * S), (int)(8 * S));
+
+                    continue;
+                }
+
                 Rectangle IconR = new Rectangle(R.X + (int)(10 * S), R.Y + (R.Height - IconSize) / 2, IconSize, IconSize);
 
                 DrawIcon(G, Item, IconR);
@@ -250,6 +271,12 @@ namespace RBX_Alt_Manager.Classes
                 HoverIndex = Index;
                 Cursor = Index >= 0 ? Cursors.Hand : Cursors.Default;
                 Invalidate();
+
+                if (Compact_)
+                {
+                    var It = Index >= 0 ? Items[Index] : null;
+                    HoverTextChanged?.Invoke(this, It == null ? string.Empty : $"{It.Title} · {(It.Count == 1 ? "1 account" : It.Count + " accounts")}");
+                }
             }
         }
 
