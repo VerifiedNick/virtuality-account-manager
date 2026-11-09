@@ -723,6 +723,10 @@ namespace RBX_Alt_Manager
                 return true;
             }
 
+            // Ctrl+Z: undo the last "move to group" (not while typing in a text box, where it undoes the text)
+            if (keyData == (Keys.Control | Keys.Z) && !(ActiveControl is TextBoxBase) && !(PageHost != null && PageHost.Visible) && !PasswordPanel.Visible && UndoLastMove())
+                return true;
+
             return base.ProcessCmdKey(ref msg, keyData);
         }
     }

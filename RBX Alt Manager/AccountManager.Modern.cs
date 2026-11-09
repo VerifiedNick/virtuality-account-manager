@@ -619,12 +619,7 @@ namespace RBX_Alt_Manager
 
             AccountsStrip.Items.Insert(Math.Min(5, AccountsStrip.Items.Count), new ToolStripMenuItem("Move to group…", null, (s, e) => ShowMoveToGroupMenu()));
 
-            GroupsSidebar.AccountsDropped += (s, e) =>
-            {
-                foreach (var A in e.Accounts) A.Group = e.Key;
-                RefreshView();
-                SaveAccounts();
-            };
+            GroupsSidebar.AccountsDropped += (s, e) => MoveAccountsToGroup(e.Accounts, e.Key);
 
             foreach (var Strip in new ToolStrip[] { MoreToolsMenu, AccountsStrip, OpenBrowserStrip, AddAccountsStrip })
                 StyleMenu(Strip);
@@ -1358,6 +1353,48 @@ namespace RBX_Alt_Manager
             AccountCard.Invalidate();
         }
 
+        private List<(Account Account, string Group)> LastMove;
+        private readonly System.Windows.Forms.Timer MoveHintTimer = new System.Windows.Forms.Timer() { Interval = 9000 };
+        private string DefaultTip;
+
+        /// <summary>Moves accounts into a group (drag and drop, picker menu) and remembers where they came from, so Ctrl+Z puts them back.</summary>
+        private void MoveAccountsToGroup(IEnumerable<Account> Accounts, string Key)
+        {
+            var List = Accounts.Where(a => !string.Equals(a.Group ?? string.Empty, Key ?? string.Empty, StringComparison.Ordinal)).ToList();
+            if (List.Count == 0) return;
+
+            LastMove = List.Select(a => (a, a.Group)).ToList();
+
+            foreach (var A in List) A.Group = Key;
+
+            RefreshView();
+            SaveAccounts();
+
+            if (DefaultTip == null) { DefaultTip = TipLabel.Text; MoveHintTimer.Tick += (s, e) => { MoveHintTimer.Stop(); TipLabel.Text = DefaultTip; }; }
+
+            TipLabel.Text = $"Moved {List.Count} account{(List.Count == 1 ? "" : "s")} to {GroupTitleOf(Key)}  ·  Ctrl+Z undoes it";
+            MoveHintTimer.Stop();
+            MoveHintTimer.Start();
+        }
+
+        private bool UndoLastMove()
+        {
+            if (LastMove == null || LastMove.Count == 0) return false;
+
+            foreach (var M in LastMove) M.Account.Group = M.Group;
+
+            int Count = LastMove.Count;
+            LastMove = null;
+
+            RefreshView();
+            SaveAccounts();
+
+            TipLabel.Text = $"Move undone ({Count} account{(Count == 1 ? "" : "s")} back in the old group)";
+            MoveHintTimer.Stop();
+            MoveHintTimer.Start();
+            return true;
+        }
+
         /// <summary>Menu to move the selected accounts into an existing group, or a brand new one – instead of a free-text field that silently creates near-duplicates on a typo.</summary>
         private void ShowMoveToGroupMenu()
         {
@@ -1374,7 +1411,7 @@ namespace RBX_Alt_Manager
             {
                 int Count = AccountsList.Count(a => (a.Group ?? string.Empty) == Key);
                 var Item = new ToolStripMenuItem($"{GroupTitleOf(Key)}   ({Count})") { Checked = CurrentGroup != null && string.Equals(Key, CurrentGroup, StringComparison.OrdinalIgnoreCase) };
-                Item.Click += (s, e) => { foreach (var A in Selected) A.Group = Key; RefreshView(); SaveAccounts(); };
+                Item.Click += (s, e) => MoveAccountsToGroup(Selected, Key);
                 Menu.Items.Add(Item);
             }
 
@@ -1385,9 +1422,7 @@ namespace RBX_Alt_Manager
                 string Name = ShowDialog("New group name", "Move to group", string.Empty);
                 if (Name == "/UC" || string.IsNullOrWhiteSpace(Name)) return;
 
-                foreach (var A in Selected) A.Group = Name.Trim();
-                RefreshView();
-                SaveAccounts();
+                MoveAccountsToGroup(Selected, Name.Trim());
             };
             Menu.Items.Add(NewGroup);
 
