@@ -667,7 +667,6 @@ namespace RBX_Alt_Manager
             MoreToolsMenu.Items.Add("Help: groups", null, (s, e) => groupsToolStripMenuItem_Click(null, EventArgs.Empty));
             MoreToolsMenu.Items.Add("Info", null, (s, e) => infoToolStripMenuItem1_Click(null, EventArgs.Empty));
             MoreToolsMenu.Items.Add("Join RAM Discord", null, (s, e) => JoinDiscord_Click(null, EventArgs.Empty));
-            MoreToolsMenu.Items.Add("Donate to the RAM developer", null, (s, e) => DonateButton_Click(null, EventArgs.Empty));
 
             MoreToolsMenu.Opening += (s, e) =>
             {
