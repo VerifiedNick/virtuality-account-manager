@@ -781,6 +781,7 @@ namespace RBX_Alt_Manager
             PasswordPanel.Dock = DockStyle.Fill;
 
             RestoreSideWidth();
+            Classes.StartMenuShortcut.Ensure();
 
             GroupImages.ImagesChanged += GroupImages_ImagesChanged;
             GroupImages.Initialize();
