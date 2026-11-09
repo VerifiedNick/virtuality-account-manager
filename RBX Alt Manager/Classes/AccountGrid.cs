@@ -19,6 +19,7 @@ namespace RBX_Alt_Manager.Classes
             public string Section;     // section header shown before this card (null = none)
             public Rectangle Card;     // unscrolled
             public Rectangle Header;   // unscrolled, empty when no header
+            public int Count;          // accounts in the section (computed once per layout, not per paint)
         }
 
         private readonly List<Entry> Entries = new List<Entry>();
@@ -123,6 +124,8 @@ namespace RBX_Alt_Manager.Classes
         {
             Entries.Clear();
 
+            Dictionary<string, int> Counts = Sections ? Items.GroupBy(a => a.Group ?? string.Empty).ToDictionary(g => g.Key, g => g.Count()) : null;
+
             // the scrollbar lane is always reserved, so the cards end at the same place with or without a scrollbar
             int W = Math.Max(Modern.Px(160), Width - SystemInformation.VerticalScrollBarWidth);
             int Cols = Math.Max(1, (W + GapX) / (CardMinW + GapX));
@@ -146,6 +149,7 @@ namespace RBX_Alt_Manager.Classes
 
                     Col = 0;
                     E.Section = A.Group;
+                    E.Count = Counts.TryGetValue(A.Group ?? string.Empty, out int N) ? N : 0;
                     E.Header = new Rectangle(0, Y, W, HeaderH);
                     Y += HeaderH + Modern.Px(4);
                 }
@@ -233,7 +237,7 @@ namespace RBX_Alt_Manager.Classes
 
                     if (H.Bottom >= 0 && H.Top <= Height)
                     {
-                        int Count = Items.Count(a => a.Group == E.Section);
+                        int Count = E.Count;
                         int Sz = Modern.Px(22);
                         var Icon = new Rectangle(H.X, H.Y + (H.Height - Sz) / 2, Sz, Sz);
                         Image Pic = GroupImages.GetImage(E.Section, out _);

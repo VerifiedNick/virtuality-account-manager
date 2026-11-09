@@ -78,10 +78,13 @@ namespace RBX_Alt_Manager.Classes
             return F;
         }
 
+        /// <summary>True while the user drags the side bar edge: pictures are scaled cheaply so every step stays smooth; the final paint is high quality again.</summary>
+        public static bool FastDraw;
+
         public static void Prepare(Graphics G)
         {
             G.SmoothingMode = SmoothingMode.None;
-            G.InterpolationMode = InterpolationMode.HighQualityBicubic;
+            G.InterpolationMode = FastDraw ? InterpolationMode.Bilinear : InterpolationMode.HighQualityBicubic;
             G.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
             G.PixelOffsetMode = PixelOffsetMode.Half;
         }

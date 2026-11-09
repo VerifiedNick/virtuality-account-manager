@@ -44,7 +44,6 @@ namespace RBX_Alt_Manager
         private ModernLabel GroupsCaption, GroupTitleLabel, GroupSubLabel, TipLabel;
         private AccountCardPanel AccountCard;
         private SideGrip SideBarGrip;
-        private Panel SideGhost;
         private ModernButton SearchIconButton;
         private int SideExpandedWidth;
         private bool SideCompact;
@@ -90,7 +89,7 @@ namespace RBX_Alt_Manager
                 LegacyHolder.Controls.Add(C);
             }
 
-            Shell = new Panel() { Name = "Shell", Location = Point.Empty, Size = ClientSize, Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right, BackColor = Modern.Bg, Tag = "NoScaling" };
+            Shell = new BufferedPanel() { Name = "Shell", Location = Point.Empty, Size = ClientSize, Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right, BackColor = Modern.Bg, Tag = "NoScaling" };
 
             HeaderBar = new LinePanel() { Dock = DockStyle.Top, Height = 64, BackColor = Modern.Panel, Lines = AnchorStyles.Bottom };
             SideBar = new LinePanel() { Dock = DockStyle.Left, Width = 266, BackColor = Modern.Panel, Lines = AnchorStyles.Right };
@@ -341,19 +340,13 @@ namespace RBX_Alt_Manager
             // drag handle on the right edge: wider / narrower, snaps to "icons only" like Discord
             SideBarGrip = new SideGrip() { Dock = DockStyle.Right, Width = Px(6) };
             SideBarGrip.CurrentWidth = () => SideBar.Width;
-            // while dragging only a thin preview line moves (the account list is not relaid out on every mouse step); the width is applied once on release
-            SideGhost = new Panel() { BackColor = Modern.Accent, Visible = false, Width = Math.Max(2, Px(2)), Tag = "NoScaling" };
-            Shell.Controls.Add(SideGhost);
-            SideBarGrip.WidthRequested = W =>
-            {
-                SideGhost.SetBounds(SideBar.Left + SnapSideWidth(W) - SideGhost.Width, SideBar.Top, SideGhost.Width, SideBar.Height);
-                if (!SideGhost.Visible) SideGhost.Visible = true;
-                SideGhost.BringToFront();
-            };
+            // live resize like Discord: cheap picture scaling while dragging, one high quality repaint on release
+            SideBarGrip.WidthRequested = W => { Modern.FastDraw = true; SetSideWidth(W, false); };
             SideBarGrip.DragFinished = W =>
             {
-                SideGhost.Visible = false;
                 SetSideWidth(W, false);
+                Modern.FastDraw = false;
+                Shell.Invalidate(true);
                 SaveSideWidth();
             };
             SideBarGrip.Toggled = () => { SetSideWidth(SideCompact ? (SideExpandedWidth > 0 ? SideExpandedWidth : Px(266)) : SideMin, true); SaveSideWidth(); };

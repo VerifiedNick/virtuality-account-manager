@@ -404,6 +404,7 @@
     <Compile Include="Classes\RobloxLock.cs" />
     <Compile Include="Classes\AccountDragData.cs" />
     <Compile Include="Classes\SideGrip.cs" />
+    <Compile Include="Classes\BufferedPanel.cs" />
     <Compile Include="Classes\StartMenuShortcut.cs" />
     <Compile Include="Classes\Private\Vocabulary.cs" Condition="Exists('Classes\Private\Vocabulary.cs')" />
     <Compile Include="Classes\Vocabulary.example.cs" Condition="!Exists('Classes\Private\Vocabulary.cs')" />
