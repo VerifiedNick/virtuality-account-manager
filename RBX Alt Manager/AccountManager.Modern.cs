@@ -1495,9 +1495,16 @@ namespace RBX_Alt_Manager
             RefreshView();
             SaveAccounts();
 
+            ShowHint($"Moved {List.Count} account{(List.Count == 1 ? "" : "s")} to {GroupTitleOf(Key)}  ·  Ctrl+Z undoes it");
+        }
+
+        /// <summary>Shows a message in the line under the list for a few seconds, then restores the usual tip.</summary>
+        private void ShowHint(string Text)
+        {
+            if (TipLabel == null) return;
             if (DefaultTip == null) { DefaultTip = TipLabel.Text; MoveHintTimer.Tick += (s, e) => { MoveHintTimer.Stop(); TipLabel.Text = DefaultTip; }; }
 
-            TipLabel.Text = $"Moved {List.Count} account{(List.Count == 1 ? "" : "s")} to {GroupTitleOf(Key)}  ·  Ctrl+Z undoes it";
+            TipLabel.Text = Text;
             MoveHintTimer.Stop();
             MoveHintTimer.Start();
         }

@@ -1045,7 +1045,7 @@ namespace RBX_Alt_Manager
             this.PlaceID.Name = "PlaceID";
             this.PlaceID.Size = new System.Drawing.Size(78, 20);
             this.PlaceID.TabIndex = 1;
-            this.PlaceID.Text = "5315046213";
+            this.PlaceID.Text = "";
             this.PlaceID.Click += new System.EventHandler(this.PlaceID_Click);
             this.PlaceID.TextChanged += new System.EventHandler(this.PlaceID_TextChanged);
             // 

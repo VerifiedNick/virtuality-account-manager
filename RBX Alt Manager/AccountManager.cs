@@ -824,7 +824,7 @@ namespace RBX_Alt_Manager
 
             RGForm.RecentGameSelected += (sender, e) => { PlaceID.Text = e.Game.Details?.placeId.ToString(); };
 
-            PlaceID.Text = General.Exists("SavedPlaceId") ? General.Get("SavedPlaceId") : "5315046213";
+            PlaceID.Text = General.Exists("SavedPlaceId") ? General.Get("SavedPlaceId") : string.Empty; // no default game: a fresh install must not join some random game
             UserID.Text = General.Exists("SavedFollowUser") ? General.Get("SavedFollowUser") : string.Empty;
 
             if (!Developer.Get<bool>("DevMode"))
@@ -1666,7 +1666,13 @@ namespace RBX_Alt_Manager
 
             bool VIPServer = JobID.TextLength > 4 && JobID.Text.Substring(0, 4) == "VIP:";
 
-            if (!long.TryParse(PlaceID.Text, out long PlaceId)) return;
+            if (!long.TryParse(PlaceID.Text, out long PlaceId))
+            {
+                // nothing (valid) entered: point at the field instead of doing nothing
+                ShowHint("Enter a Place ID or game link in the Game field first.");
+                PlaceID.Focus();
+                return;
+            }
 
             if (!PlaceTimer.Enabled)
                 _ = Task.Run(() => AddRecentGame(new Game(PlaceId)));
