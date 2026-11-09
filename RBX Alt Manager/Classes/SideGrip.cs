@@ -8,11 +8,12 @@ namespace RBX_Alt_Manager.Classes
     public class SideGrip : Control
     {
         private bool Hot, Dragging;
-        private int StartScreenX, StartWidth;
+        private int StartScreenX, StartWidth, Target;
 
-        /// <summary>Asks the owner to set the side bar width; the owner clamps and snaps it.</summary>
+        /// <summary>While dragging: the width the mouse points at (the owner only shows a preview line, nothing is relaid out).</summary>
         public Action<int> WidthRequested = _ => { };
-        public Action DragFinished = () => { };
+        /// <summary>Mouse released: the final width. The owner applies it once.</summary>
+        public Action<int> DragFinished = _ => { };
         public Action Toggled = () => { };
         public Func<int> CurrentWidth = () => 0;
 
@@ -46,6 +47,7 @@ namespace RBX_Alt_Manager.Classes
             Dragging = true;
             StartScreenX = Cursor.Position.X;
             StartWidth = CurrentWidth();
+            Target = StartWidth;
             Capture = true;
             Invalidate();
         }
@@ -54,7 +56,13 @@ namespace RBX_Alt_Manager.Classes
         {
             base.OnMouseMove(e);
 
-            if (Dragging) WidthRequested(StartWidth + Cursor.Position.X - StartScreenX);
+            if (!Dragging) return;
+
+            int W = StartWidth + Cursor.Position.X - StartScreenX;
+            if (W == Target) return;
+
+            Target = W;
+            WidthRequested(W);
         }
 
         protected override void OnMouseUp(MouseEventArgs e)
@@ -66,7 +74,7 @@ namespace RBX_Alt_Manager.Classes
             Dragging = false;
             Capture = false;
             Invalidate();
-            DragFinished();
+            DragFinished(Target);
         }
 
         protected override void OnMouseDoubleClick(MouseEventArgs e)

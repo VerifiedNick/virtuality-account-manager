@@ -44,6 +44,7 @@ namespace RBX_Alt_Manager
         private ModernLabel GroupsCaption, GroupTitleLabel, GroupSubLabel, TipLabel;
         private AccountCardPanel AccountCard;
         private SideGrip SideBarGrip;
+        private Panel SideGhost;
         private ModernButton SearchIconButton;
         private int SideExpandedWidth;
         private bool SideCompact;
@@ -340,8 +341,21 @@ namespace RBX_Alt_Manager
             // drag handle on the right edge: wider / narrower, snaps to "icons only" like Discord
             SideBarGrip = new SideGrip() { Dock = DockStyle.Right, Width = Px(6) };
             SideBarGrip.CurrentWidth = () => SideBar.Width;
-            SideBarGrip.WidthRequested = W => SetSideWidth(W, false);
-            SideBarGrip.DragFinished = () => { SideExpandedWidth = SideCompact ? SideExpandedWidth : SideBar.Width; SaveSideWidth(); };
+            // while dragging only a thin preview line moves (the account list is not relaid out on every mouse step); the width is applied once on release
+            SideGhost = new Panel() { BackColor = Modern.Accent, Visible = false, Width = Math.Max(2, Px(2)), Tag = "NoScaling" };
+            Shell.Controls.Add(SideGhost);
+            SideBarGrip.WidthRequested = W =>
+            {
+                SideGhost.SetBounds(SideBar.Left + SnapSideWidth(W) - SideGhost.Width, SideBar.Top, SideGhost.Width, SideBar.Height);
+                if (!SideGhost.Visible) SideGhost.Visible = true;
+                SideGhost.BringToFront();
+            };
+            SideBarGrip.DragFinished = W =>
+            {
+                SideGhost.Visible = false;
+                SetSideWidth(W, false);
+                SaveSideWidth();
+            };
             SideBarGrip.Toggled = () => { SetSideWidth(SideCompact ? (SideExpandedWidth > 0 ? SideExpandedWidth : Px(266)) : SideMin, true); SaveSideWidth(); };
             SideBar.Controls.Add(SideBarGrip);
             SideBarGrip.BringToFront();
@@ -411,10 +425,7 @@ namespace RBX_Alt_Manager
         {
             if (SideBar == null) return;
 
-            int W = Math.Max(SideMin, Math.Min(SideMax, Width));
-
-            if (W < Px(130)) W = SideMin;
-            else if (W < Px(200)) W = Px(200);
+            int W = SnapSideWidth(Width);
 
             if (W == SideBar.Width) return;
 
@@ -429,6 +440,17 @@ namespace RBX_Alt_Manager
             HeaderBar.Invalidate();
 
             if (Final) SaveSideWidth();
+        }
+
+        /// <summary>Clamps to the allowed range and snaps: close to the minimum = icons only, otherwise never below a readable width.</summary>
+        private int SnapSideWidth(int Width)
+        {
+            int W = Math.Max(SideMin, Math.Min(SideMax, Width));
+
+            if (W < Px(130)) return SideMin;
+            if (W < Px(200)) return Px(200);
+
+            return W;
         }
 
         private void SaveSideWidth()
