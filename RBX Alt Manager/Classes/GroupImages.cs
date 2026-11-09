@@ -12,25 +12,25 @@ using System.Threading.Tasks;
 
 namespace RBX_Alt_Manager.Classes
 {
-    public enum EntryVariant { Normal, Golden, Rainbow, Shiny }
+    public enum PictureVariant { Normal, Golden, Rainbow, Shiny }
 
-    public class GroupPetInfo
+    public class GroupPictureInfo
     {
-        public string EntryName;     // the catalog name that was matched, null when nothing matched
+        public string EntryName;     // catalog name that was matched, null when nothing matched
         public string AssetId;     // Roblox image asset of the entry (golden image for golden variants)
-        public EntryVariant Variant;
+        public PictureVariant Variant;
         public bool FromOverride;  // true when the user picked the entry for this group by hand
     }
 
     /// <summary>
-    /// Finds a picture for every account group by matching the group name (e.g. "G: Rank Sample Name")
-    /// against the the catalog entry list from the Big Games API and downloading the entry's thumbnail.
+    /// Finds a picture for every account group by matching the group name (e.g. "G: Sample Name")
+    /// against an online catalog and downloading the matching thumbnail.
     /// Everything is cached in the "GroupImages" folder next to the exe; failures just mean "no picture".
     /// </summary>
     public static class GroupImages
     {
         private static readonly string CacheFolder = Path.Combine(Environment.CurrentDirectory, "GroupImages");
-        private static readonly string CatalogCacheFile = Path.Combine(CacheFolder, "entries.json");
+        private static readonly string CatalogCacheFile = Path.Combine(CacheFolder, "catalog.json");
         private static readonly string OverridesFile = Path.Combine(Environment.CurrentDirectory, "GroupImages.json");
         private static readonly HttpClient Http = new HttpClient() { Timeout = TimeSpan.FromSeconds(20) };
 
@@ -41,7 +41,7 @@ namespace RBX_Alt_Manager.Classes
         private static Dictionary<string, string> Overrides;
         private static Task CatalogTask;
 
-        /// <summary>Raised (on a background thread) whenever new entry data or a new picture became available.</summary>
+        /// <summary>Raised (on a background thread) whenever new catalog data or a new picture became available.</summary>
         public static event EventHandler ImagesChanged;
 
         public static void Initialize()
@@ -49,7 +49,7 @@ namespace RBX_Alt_Manager.Classes
             LoadOverrides();
 
             if (CatalogTask == null)
-                CatalogTask = Task.Run(LoadEntries);
+                CatalogTask = Task.Run(LoadCatalog);
         }
 
         public static string StripGroupPrefix(string Group)
@@ -62,20 +62,20 @@ namespace RBX_Alt_Manager.Classes
             return Regex.Replace(Name, @"\s+", " ").Trim();
         }
 
-        public static GroupPetInfo Resolve(string Group)
+        public static GroupPictureInfo Resolve(string Group)
         {
-            var Info = new GroupPetInfo();
+            var Info = new GroupPictureInfo();
             var EntryList = Catalog;
 
             string Override = GetOverride(Group);
-            if (IsCustom(Override)) Override = null; // own picture file: no entry behind it
+            if (IsCustom(Override)) Override = null; // own picture file: nothing to look up
             string Name = Override ?? StripGroupPrefix(Group);
 
             Info.FromOverride = Override != null;
 
-            if (Regex.IsMatch(Name, @"\bgolden\b", RegexOptions.IgnoreCase)) Info.Variant = EntryVariant.Golden;
-            else if (Regex.IsMatch(Name, @"\brainbow\b", RegexOptions.IgnoreCase)) Info.Variant = EntryVariant.Rainbow;
-            else if (Regex.IsMatch(Name, @"\bshiny\b", RegexOptions.IgnoreCase)) Info.Variant = EntryVariant.Shiny;
+            if (Regex.IsMatch(Name, @"\bgolden\b", RegexOptions.IgnoreCase)) Info.Variant = PictureVariant.Golden;
+            else if (Regex.IsMatch(Name, @"\brainbow\b", RegexOptions.IgnoreCase)) Info.Variant = PictureVariant.Rainbow;
+            else if (Regex.IsMatch(Name, @"\bshiny\b", RegexOptions.IgnoreCase)) Info.Variant = PictureVariant.Shiny;
 
             if (EntryList == null) return Info;
 
@@ -93,22 +93,22 @@ namespace RBX_Alt_Manager.Classes
             if (Found != null)
             {
                 Info.EntryName = Found.Value.Name;
-                Info.AssetId = Info.Variant == EntryVariant.Golden && !string.IsNullOrEmpty(Found.Value.Golden) ? Found.Value.Golden : Found.Value.Thumb;
+                Info.AssetId = Info.Variant == PictureVariant.Golden && !string.IsNullOrEmpty(Found.Value.Golden) ? Found.Value.Golden : Found.Value.Thumb;
             }
 
             return Info;
         }
 
-        /// <summary>"Rank Sample" -> "Rank Sample Dragon": the shortest Rank whose name contains every word of the group name.</summary>
+        /// <summary>Loose match: the shortest top-rank entry whose name contains every word of the group name.</summary>
         private static (string Thumb, string Golden, string Name)? LooseMatch(Dictionary<string, (string Thumb, string Golden, string Name)> EntryList, string Base)
         {
             string Singular = Regex.Replace(Base, @"(?<=\w{3})s$", string.Empty, RegexOptions.IgnoreCase);
-            var Words = Singular.ToLowerInvariant().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Where(w => w != "rank").ToList();
+            var Words = Singular.ToLowerInvariant().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Where(w => !string.Equals(w, Vocabulary.Rank, StringComparison.OrdinalIgnoreCase)).ToList();
 
             if (Words.Count == 0 || Words.Count > 3 || Words.Any(w => w.Length < 3 || !Regex.IsMatch(w, @"^[a-z]+$"))) return null;
 
             var Match = EntryList.Values
-                .Where(p => p.Name.StartsWith("Rank ", StringComparison.OrdinalIgnoreCase))
+                .Where(p => p.Name.StartsWith(Vocabulary.Rank + " ", StringComparison.OrdinalIgnoreCase))
                 .Where(p => Words.All(w => Regex.IsMatch(p.Name, $@"\b{w}\b", RegexOptions.IgnoreCase)))
                 .OrderBy(p => p.Name.Length)
                 .FirstOrDefault();
@@ -120,21 +120,21 @@ namespace RBX_Alt_Manager.Classes
         {
             if (string.IsNullOrEmpty(Name)) yield break;
 
-            string Singular = Regex.Replace(Name, @"(?<=\w{3})s$", string.Empty, RegexOptions.IgnoreCase); // "Rank Lucky Cats" -> "Rank Lucky Cat"
+            string Singular = Regex.Replace(Name, @"(?<=\w{3})s$", string.Empty, RegexOptions.IgnoreCase); // plural -> singular
 
             yield return Name;
             yield return Singular;
 
-            if (!Name.StartsWith("Rank ", StringComparison.OrdinalIgnoreCase) && !Name.StartsWith("Tier ", StringComparison.OrdinalIgnoreCase))
+            if (!Name.StartsWith(Vocabulary.Rank + " ", StringComparison.OrdinalIgnoreCase) && !Name.StartsWith(Vocabulary.Tier + " ", StringComparison.OrdinalIgnoreCase))
             {
-                yield return "Rank " + Name;
-                yield return "Rank " + Singular;
+                yield return Vocabulary.Rank + " " + Name;
+                yield return Vocabulary.Rank + " " + Singular;
             }
         }
 
         private static string CustomFolder => Path.Combine(CacheFolder, "custom");
 
-        /// <summary>True when the group uses a picture file the user chose (not a Rank).</summary>
+        /// <summary>True when the group uses a picture file the user chose (not a catalog entry).</summary>
         public static bool IsCustom(string Override) => Override != null && Override.StartsWith("file:", StringComparison.OrdinalIgnoreCase);
 
         /// <summary>Own picture for a group: square-cropped, stored as 256 px PNG in GroupImages\custom.</summary>
@@ -162,13 +162,13 @@ namespace RBX_Alt_Manager.Classes
         }
 
         /// <summary>Returns the picture for the group, or null if there is none (yet). Missing pictures are fetched in the background.</summary>
-        public static Image GetImage(string Group, out GroupPetInfo Info)
+        public static Image GetImage(string Group, out GroupPictureInfo Info)
         {
             string Own = GetOverride(Group);
 
             if (IsCustom(Own))
             {
-                Info = new GroupPetInfo() { FromOverride = true };
+                Info = new GroupPictureInfo() { FromOverride = true };
 
                 if (Images.TryGetValue(Own, out Image Mine)) return Mine;
 
@@ -209,13 +209,13 @@ namespace RBX_Alt_Manager.Classes
             return EntryList.Values
                 .Select(p => p.Name)
                 .Where(n => Words.All(w => n.ToLowerInvariant().Contains(w)))
-                .OrderBy(n => n.StartsWith("Rank", StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+                .OrderBy(n => n.StartsWith(Vocabulary.Rank, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
                 .ThenBy(n => n.Length)
                 .Take(Max)
                 .ToList();
         }
 
-        public static bool EntryListReady => Catalog != null;
+        public static bool CatalogReady => Catalog != null;
 
         public static bool IsKnownEntry(string Name)
         {
@@ -298,7 +298,7 @@ namespace RBX_Alt_Manager.Classes
             }
         }
 
-        private static async Task LoadEntries()
+        private static async Task LoadCatalog()
         {
             try
             {
@@ -313,14 +313,14 @@ namespace RBX_Alt_Manager.Classes
                 {
                     try
                     {
-                        Json = await Http.GetStringAsync("https://catalog.invalid/api/collection/Catalog");
+                        Json = await Http.GetStringAsync(Vocabulary.CatalogUrl);
 
                         if (Parse(Json) != null)
                             File.WriteAllText(CatalogCacheFile, Json);
                     }
                     catch (Exception x)
                     {
-                        Program.Logger.Warn($"[GroupImages] Entry list download failed: {x.Message}");
+                        Program.Logger.Warn($"[GroupImages] Catalog download failed: {x.Message}");
 
                         if (File.Exists(CatalogCacheFile)) Json = File.ReadAllText(CatalogCacheFile); // an old list is better than none
                     }

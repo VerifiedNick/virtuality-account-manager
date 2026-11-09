@@ -135,29 +135,29 @@ namespace RBX_Alt_Manager.Classes
             return B;
         }
 
-        /// <summary>Frame around a Rank picture: gold for golden, rainbow gradient for rainbow, nothing for normal.</summary>
-        public static void VariantFrame(Graphics G, Rectangle R, EntryVariant? Variant, float Width = 2f)
+        /// <summary>Frame around a catalog picture: gold for golden, rainbow gradient for rainbow, nothing for normal.</summary>
+        public static void VariantFrame(Graphics G, Rectangle R, PictureVariant? Variant, float Width = 2f)
         {
-            if (Variant != EntryVariant.Golden && Variant != EntryVariant.Rainbow) return;
+            if (Variant != PictureVariant.Golden && Variant != PictureVariant.Rainbow) return;
 
             int W = Math.Max(2, Px(Width));
 
-            using (Brush B = Variant == EntryVariant.Golden ? new SolidBrush(Gold) : RainbowBrush(R))
+            using (Brush B = Variant == PictureVariant.Golden ? new SolidBrush(Gold) : RainbowBrush(R))
             using (var P = new Pen(B, W) { Alignment = PenAlignment.Inset })
                 G.DrawRectangle(P, R.X, R.Y, R.Width - 1, R.Height - 1);
         }
 
         /// <summary>Small "GOLDEN" / "RAINBOW" tag. Returns its width (0 = nothing drawn).</summary>
-        public static int VariantTag(Graphics G, EntryVariant? Variant, int X, int Y, int Height)
+        public static int VariantTag(Graphics G, PictureVariant? Variant, int X, int Y, int Height)
         {
-            if (Variant != EntryVariant.Golden && Variant != EntryVariant.Rainbow) return 0;
+            if (Variant != PictureVariant.Golden && Variant != PictureVariant.Rainbow) return 0;
 
-            string T = Variant == EntryVariant.Golden ? "GOLDEN" : "RAINBOW";
+            string T = Variant == PictureVariant.Golden ? "GOLDEN" : "RAINBOW";
             Font F = Font(6.75f, FontStyle.Regular, true);
             int W = TextRenderer.MeasureText(T, F, Size.Empty, TextFormatFlags.NoPadding).Width + Px(8);
             var R = new Rectangle(X, Y, W, Height);
 
-            using (Brush B = Variant == EntryVariant.Golden ? new SolidBrush(Gold) : RainbowBrush(R))
+            using (Brush B = Variant == PictureVariant.Golden ? new SolidBrush(Gold) : RainbowBrush(R))
                 G.FillRectangle(B, R);
 
             TextRenderer.DrawText(G, T, F, R, Color.Black, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);

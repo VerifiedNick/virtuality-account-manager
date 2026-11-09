@@ -342,3 +342,6 @@ Groups.json
 GroupImages/
 migrate-from.txt
 log.txt*
+
+# private word list, never published
+RBX Alt Manager/Classes/Private/

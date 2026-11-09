@@ -264,14 +264,14 @@ namespace RBX_Alt_Manager.Classes
             var One = Single;
             bool Banned = One != null && AccountRowRenderer.StateOf(One) == AccountState.Banned;
 
-            // avatar: the group's Rank if there is a picture, otherwise the initials
+            // avatar: the group's picture if there is one, otherwise the initials
             Image Picture = null;
             string GroupKey = Accounts.Count > 0 && Accounts.All(a => a.Group == Accounts[0].Group) ? Accounts[0].Group : null;
 
-            GroupPetInfo EntryInfo = null;
+            GroupPictureInfo PictureInfo = null;
 
             if (One != null && !AccountRowRenderer.HideNames) Picture = AvatarCache.Get(One.UserID);
-            if (Picture == null && GroupKey != null && One == null) Picture = GroupImages.GetImage(GroupKey, out EntryInfo);
+            if (Picture == null && GroupKey != null && One == null) Picture = GroupImages.GetImage(GroupKey, out PictureInfo);
 
             Modern.Box(G, AvatarR, Banned ? Modern.DangerBg : Modern.Field, Banned ? Modern.DangerLine : Modern.FieldBorder);
 
@@ -279,7 +279,7 @@ namespace RBX_Alt_Manager.Classes
             {
                 var Inset = Rectangle.Inflate(AvatarR, -1, -1);
                 G.DrawImage(Picture, Inset);
-                Modern.VariantFrame(G, AvatarR, EntryInfo?.Variant);
+                Modern.VariantFrame(G, AvatarR, PictureInfo?.Variant);
             }
             else
             {

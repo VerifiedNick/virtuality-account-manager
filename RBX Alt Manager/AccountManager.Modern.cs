@@ -683,7 +683,7 @@ namespace RBX_Alt_Manager
 
             if (Short.Length == 0) Short = Title;
 
-            // abbreviations like "HSA" show the Rank chosen for the group's picture
+            // abbreviations like "HSA" show the entry chosen for the group's picture
             if (!Short.Contains(" ") && Short.Length <= 5 && Short.ToUpperInvariant() == Short && GroupImages.GetOverride(Key) is string Entry && !GroupImages.IsCustom(Entry))
                 return Entry;
 
@@ -815,7 +815,7 @@ namespace RBX_Alt_Manager
 
         /// <summary>
         /// A group exists through its accounts, so a new group is made from the selected accounts:
-        /// name → accounts move there → choose a picture (Rank or own image).
+        /// name → accounts move there → choose a picture (catalog entry or own image).
         /// </summary>
         /// <summary>
         /// New group: name → (selected accounts move there, if you want) → picture.
@@ -865,7 +865,7 @@ namespace RBX_Alt_Manager
         private void AskGroupPicture(string Key)
         {
             var Menu = new ContextMenuStrip();
-            Menu.Items.Add("Choose a Rank as picture…", null, (s, e) => ChooseGroupPicture(Key, GroupTitleOf(Key)));
+            Menu.Items.Add($"Choose a {Vocabulary.Rank} as picture…", null, (s, e) => ChooseGroupPicture(Key, GroupTitleOf(Key)));
             Menu.Items.Add("Choose an image file…", null, (s, e) => ChooseGroupPictureFile(Key));
             Menu.Items.Add("Automatic (from the group name)", null, (s, e) => { });
             ModernSkin.StyleMenu(Menu);

@@ -31,7 +31,7 @@ namespace RBX_Alt_Manager.Classes
     }
 
     /// <summary>
-    /// Left-hand overview of all account groups: one card per group with the Rank's picture, the name and the account count.
+    /// Left-hand overview of all account groups: one card per group with the group's picture, the name and the account count.
     /// Click = jump to the group, double click = select the group's accounts, right click = change the picture.
     /// </summary>
     public class GroupSidebar : Panel
@@ -138,7 +138,7 @@ namespace RBX_Alt_Manager.Classes
             var AllWords = Title.Split(new[] { ' ', ',', '-', '_', ':' }, StringSplitOptions.RemoveEmptyEntries)
                                 .Where(w => char.IsLetterOrDigit(w[0]))
                                 .ToList();
-            var Words = AllWords.Where(w => !string.Equals(w, "Rank", StringComparison.OrdinalIgnoreCase) && !string.Equals(w, "and", StringComparison.OrdinalIgnoreCase)).ToList();
+            var Words = AllWords.Where(w => !string.Equals(w, Vocabulary.Rank, StringComparison.OrdinalIgnoreCase) && !string.Equals(w, "and", StringComparison.OrdinalIgnoreCase)).ToList();
 
             if (Words.Count == 0) Words = AllWords;
             if (Words.Count == 0) return "?";
@@ -215,7 +215,7 @@ namespace RBX_Alt_Manager.Classes
         private void DrawIcon(Graphics G, GroupSidebarItem Item, Rectangle R)
         {
             Image Picture = null;
-            GroupPetInfo Info = null;
+            GroupPictureInfo Info = null;
 
             if (Item.Key != null)
                 Picture = GroupImages.GetImage(Item.Key, out Info);

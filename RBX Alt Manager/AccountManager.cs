@@ -308,7 +308,7 @@ namespace RBX_Alt_Manager
             string Key = e.Item.Key;
             var Menu = new ContextMenuStrip();
 
-            Menu.Items.Add("Picture: choose a Rank…", null, (s, a) => ChooseGroupPicture(Key, e.Item.Title));
+            Menu.Items.Add($"Picture: choose a {Vocabulary.Rank}…", null, (s, a) => ChooseGroupPicture(Key, e.Item.Title));
             Menu.Items.Add("Picture: choose an image file…", null, (s, a) => ChooseGroupPictureFile(Key));
 
             if (GroupImages.GetOverride(Key) != null)
@@ -326,19 +326,19 @@ namespace RBX_Alt_Manager
 
         private void ChooseGroupPicture(string Key, string Title)
         {
-            if (!GroupImages.EntryListReady)
+            if (!GroupImages.CatalogReady)
             {
-                ModernDialog.Show("The entry list is still loading (or there is no internet connection). Try again in a moment.", "Roblox Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ModernDialog.Show("The picture list is still loading (or there is no internet connection). Try again in a moment.", "Roblox Account Manager", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
-            GroupPetInfo Current = GroupImages.Resolve(Key);
+            GroupPictureInfo Current = GroupImages.Resolve(Key);
             string Own = GroupImages.GetOverride(Key);
             string Suggestion = (GroupImages.IsCustom(Own) ? null : Own) ?? Current.EntryName ?? GroupImages.StripGroupPrefix(Key);
 
             while (true)
             {
-                string Input = ShowDialog($"Which Rank should be the picture for \"{Title}\"?\nExample: Rank Sample Name   or   Golden Rank Pony", "Group Picture", Suggestion);
+                string Input = ShowDialog($"Which {Vocabulary.Rank} should be the picture for \"{Title}\"?\nExample: {Vocabulary.ExampleOne}   or   {Vocabulary.ExampleTwo}", "Group Picture", Suggestion);
 
                 if (Input == "/UC" || string.IsNullOrWhiteSpace(Input)) return;
 
@@ -352,7 +352,7 @@ namespace RBX_Alt_Manager
 
                 if (Matches.Count == 0)
                 {
-                    ModernDialog.Show($"No entry called \"{Input}\" was found. Check the spelling, e.g. \"Rank Sample Name\".", "Group Picture", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    ModernDialog.Show($"Nothing called \"{Input}\" was found. Check the spelling, e.g. \"{Vocabulary.ExampleOne}\".", "Group Picture", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     Suggestion = Input;
                     continue;
                 }
