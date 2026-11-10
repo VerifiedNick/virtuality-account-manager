@@ -16,14 +16,14 @@ namespace RBX_Alt_Manager.Classes
         public readonly ModernButton CopyPassword = new ModernButton() { Text = "Copy" };
         public readonly ModernButton ShowPassword = new ModernButton() { Icon = IconKind.Eye, Style = ModernButtonStyle.Ghost };
         public readonly ModernButton Login = new ModernButton() { Text = "Login", Icon = IconKind.Login, Style = ModernButtonStyle.Primary, TextPoints = 10.5f };
-        public readonly ModernButton AddFriend = new ModernButton() { Text = "Add main account", Style = ModernButtonStyle.Outline };
+        public readonly ModernButton AddFriend = new ModernButton() { Text = "Add main account" };
         public readonly ModernButton OpenBrowser = new ModernButton() { Text = "Open browser" };
         public readonly ModernButton Follow = new ModernButton() { Text = "Follow user" };
         public readonly ModernButton MoreTools = new ModernButton() { Text = "More tools", SplitMenu = false };
         public readonly ModernButton ChangeMain = new ModernButton() { Text = "Change", Style = ModernButtonStyle.Ghost, Bold = false, TextPoints = 8.5f };
         public readonly ModernButton ChangeJoin = new ModernButton() { Text = "Change", Style = ModernButtonStyle.Ghost, Bold = false, TextPoints = 8.5f };
-        public readonly ModernButton EditNote = new ModernButton() { Text = "Edit note", Bold = false };
-        public readonly ModernButton Remove = new ModernButton() { Text = "Remove…", Style = ModernButtonStyle.Danger, Bold = false };
+        public readonly ModernButton EditNote = new ModernButton() { Text = "Edit note" };
+        public readonly ModernButton Remove = new ModernButton() { Text = "Remove…", Style = ModernButtonStyle.Danger };
 
         public Func<string, string> GroupTitle = g => g;
         public string FriendTarget = string.Empty;
@@ -194,22 +194,20 @@ namespace RBX_Alt_Manager.Classes
             MoreTools.SetBounds(P + Half + Gap, Y, W - Half - Gap, BH);
             Y += BH + Modern.Px(10);
 
+            // third row of the same block (same size, same gap): no empty space between the tools and "Edit note" / "Remove…".
             // "Friend requests go to" / "Join button joins" are global: they live in Settings → Joining, not on a single account
-            Y -= Modern.Px(10);
-
-            int BottomH = Modern.Px(36);
-            int BottomY = Math.Max(Y + Modern.Px(14), Height - P - BottomH);
-            EditNote.SetBounds(P, BottomY, Half, BottomH);
-            Remove.SetBounds(P + Half + Gap, BottomY, W - Half - Gap, BottomH);
+            Y -= Modern.Px(2);
+            EditNote.SetBounds(P, Y, Half, BH);
+            Remove.SetBounds(P + Half + Gap, Y, W - Half - Gap, BH);
         }
 
         /// <summary>Several accounts: a scrollable list of them, each with its own Login button.</summary>
         private void LayoutMulti(int P, int W, int Y, int Gap)
         {
-            int Inner = Modern.Px(12), Half = (W - Gap) / 2, BH = Modern.Px(40), BottomH = Modern.Px(36);
+            int Inner = Modern.Px(12), Half = (W - Gap) / 2, BH = Modern.Px(40);
 
             // everything under the list has a fixed height, the list takes the rest
-            int Below = Modern.Px(14) + Modern.Px(46) + Modern.Px(4) + Modern.Px(34) + Modern.Px(10) + BH + Modern.Px(8) + BH + Modern.Px(10) + Modern.Px(28) + Modern.Px(2) + Modern.Px(28) + Modern.Px(14) + BottomH + P;
+            int Below = Modern.Px(14) + Modern.Px(46) + Modern.Px(4) + Modern.Px(34) + Modern.Px(10) + BH + Modern.Px(8) + BH + Modern.Px(8) + BH + P;
             int BoxH = Math.Max(Modern.Px(150), Height - Y - Below);
 
             ListBoxR = new Rectangle(P, Y, W, BoxH);
@@ -234,12 +232,10 @@ namespace RBX_Alt_Manager.Classes
             MoreTools.SetBounds(P + Half + Gap, Y, W - Half - Gap, BH);
             Y += BH + Modern.Px(10);
 
-            // "Friend requests go to" / "Join button joins" are global: they live in Settings → Joining, not on a single account
-            Y -= Modern.Px(10);
-
-            int BottomY = Math.Max(Y + Modern.Px(14), Height - P - BottomH);
-            EditNote.SetBounds(P, BottomY, Half, BottomH);
-            Remove.SetBounds(P + Half + Gap, BottomY, W - Half - Gap, BottomH);
+            // third row of the same block, exactly like the single account view
+            Y -= Modern.Px(2);
+            EditNote.SetBounds(P, Y, Half, BH);
+            Remove.SetBounds(P + Half + Gap, Y, W - Half - Gap, BH);
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -327,7 +323,7 @@ namespace RBX_Alt_Manager.Classes
                 int Need = Accounts.Count(a => AccountRowRenderer.StateOf(a) == AccountState.NeedsLogin);
                 Modern.Text_(G, Need > 0 ? $"{Need} TO LOG IN" : $"{Accounts.Count} SELECTED", Modern.Font(7.75f, FontStyle.Regular, true), ListCaptionR, Need > 0 ? Modern.Warn : Modern.Sub, TextFormatFlags.NoPadding);
 
-                TextRenderer.DrawText(G, "One login window at a time: do the captcha, then the next account. Each row has its own Login button too.", Modern.Font(8f), LoginHintR, Modern.Sub, TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix | TextFormatFlags.Top);
+                TextRenderer.DrawText(G, "One login window at a time: do the captcha, then the next account. Each row has its own Login button too.", Modern.Font(8f), LoginHintR, Modern.Sub, TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix | TextFormatFlags.Top | TextFormatFlags.NoPadding);
                 return;
             }
 
@@ -380,7 +376,7 @@ namespace RBX_Alt_Manager.Classes
             Modern.Text_(G, MailLine, Modern.Font(8.5f), EmailR, Modern.Text2, TextFormatFlags.NoPadding);
             Modern.Text_(G, "Copies are cleared from the clipboard after 30 s.", Modern.Font(8f), CopyHintR, Modern.Sub, TextFormatFlags.NoPadding);
 
-            TextRenderer.DrawText(G, "Opens the Roblox login with username and password filled in. You only do the captcha / 2-step code.", Modern.Font(8f), LoginHintR, Modern.Sub, TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix | TextFormatFlags.Top);
+            TextRenderer.DrawText(G, "Opens the Roblox login with username and password filled in. You only do the captcha / 2-step code.", Modern.Font(8f), LoginHintR, Modern.Sub, TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix | TextFormatFlags.Top | TextFormatFlags.NoPadding);
 
         }
 

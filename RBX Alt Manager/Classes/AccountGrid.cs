@@ -67,6 +67,7 @@ namespace RBX_Alt_Manager.Classes
             AutoScroll = true;
             BackColor = Modern.Bg;
             Tag = "NoScaling";
+            Pinned = new PinnedHeader(this);
 
             DragScroll.Tick += (s, e) =>
             {
@@ -79,6 +80,7 @@ namespace RBX_Alt_Manager.Classes
 
                 Step = Math.Sign(Step) * Math.Min(Modern.Px(40), Math.Abs(Step) / 2 + Modern.Px(4));
                 AutoScrollPosition = new Point(0, Math.Max(0, -AutoScrollPosition.Y + Step));
+                UpdatePinned();
                 UpdateDrag(P);
             };
         }
@@ -128,6 +130,7 @@ namespace RBX_Alt_Manager.Classes
 
             // the scrollbar lane is always reserved, so the cards end at the same place with or without a scrollbar
             int W = Math.Max(Modern.Px(160), Width - SystemInformation.VerticalScrollBarWidth);
+            LayoutW = W;
             int Cols = Math.Max(1, (W + GapX) / (CardMinW + GapX));
             int CardW = Math.Max(Modern.Px(160), (W - GapX * (Cols - 1)) / Cols);
             int Y = Pad, Col = 0;
@@ -168,6 +171,7 @@ namespace RBX_Alt_Manager.Classes
             if (Col != 0) Y += ItemH + ItemGap;
 
             AutoScrollMinSize = new Size(0, Y + Pad);
+            UpdatePinned();
         }
 
         protected override void OnResize(EventArgs e)
@@ -221,6 +225,8 @@ namespace RBX_Alt_Manager.Classes
             Modern.Prepare(G);
             G.Clear(BackColor);
 
+            UpdatePinned(); // safety net: any scroll change that did not come through the handlers below
+
             if (Entries.Count == 0)
             {
                 Modern.Text_(G, "No accounts here", Modern.Font(10f), ClientRectangle, Modern.Sub, TextFormatFlags.HorizontalCenter);
@@ -235,33 +241,7 @@ namespace RBX_Alt_Manager.Classes
                 {
                     var H = Shift(E.Header);
 
-                    if (H.Bottom >= 0 && H.Top <= Height)
-                    {
-                        int Count = E.Count;
-                        int Sz = Modern.Px(22);
-                        var Icon = new Rectangle(H.X, H.Y + (H.Height - Sz) / 2, Sz, Sz);
-                        Image Pic = GroupImages.GetImage(E.Section, out _);
-
-                        var Variant = GroupImages.Resolve(E.Section).Variant;
-
-                        Modern.Box(G, Icon, Modern.Field, Modern.FieldBorder);
-                        if (Pic != null) G.DrawImage(Pic, Rectangle.Inflate(Icon, -1, -1));
-                        Modern.VariantFrame(G, Icon, Variant, 1.5f);
-
-                        string Title = SectionTitle(E.Section);
-                        Font TF = Modern.Font(10f, FontStyle.Regular, true);
-                        int TW = TextRenderer.MeasureText(Title, TF, Size.Empty, TextFormatFlags.NoPadding).Width;
-                        int X = Icon.Right + Modern.Px(10);
-
-                        Modern.Text_(G, Title, TF, new Rectangle(X, H.Y, H.Width, H.Height), Modern.Text, TextFormatFlags.NoPadding);
-                        X += TW + Modern.Px(8);
-
-
-                        Modern.Text_(G, $"{Count}", Modern.Font(8.5f), new Rectangle(X, H.Y, Modern.Px(60), H.Height), Modern.Sub, TextFormatFlags.NoPadding);
-
-                        using (var P = new Pen(Modern.Line))
-                            G.DrawLine(P, H.X, H.Bottom - 1, H.Right, H.Bottom - 1);
-                    }
+                    if (H.Bottom >= 0 && H.Top <= Height) PaintHeader(G, E.Section, E.Count, H);
                 }
 
                 var R = Shift(E.Card);
@@ -279,6 +259,131 @@ namespace RBX_Alt_Manager.Classes
                 using (var DP = new Pen(Modern.AccentText)) G.DrawRectangle(DP, DR.X, DR.Y, Math.Max(0, DR.Width - 1), Math.Max(0, DR.Height - 1));
             }
         }
+
+        /// <summary>Section header: group picture, title, number of accounts and a line. Also drawn by the pinned copy at the top of the list.</summary>
+        private void PaintHeader(Graphics G, string Section, int Count, Rectangle H)
+        {
+            int Sz = Modern.Px(22);
+            var Icon = new Rectangle(H.X, H.Y + (H.Height - Sz) / 2, Sz, Sz);
+            Image Pic = GroupImages.GetImage(Section, out _);
+
+            var Variant = GroupImages.Resolve(Section).Variant;
+
+            Modern.Box(G, Icon, Modern.Field, Modern.FieldBorder);
+            if (Pic != null) G.DrawImage(Pic, Rectangle.Inflate(Icon, -1, -1));
+            Modern.VariantFrame(G, Icon, Variant, 1.5f);
+
+            string Title = SectionTitle(Section);
+            Font TF = Modern.Font(10f, FontStyle.Regular, true);
+            int TW = TextRenderer.MeasureText(Title, TF, Size.Empty, TextFormatFlags.NoPadding).Width;
+            int X = Icon.Right + Modern.Px(10);
+
+            Modern.Text_(G, Title, TF, new Rectangle(X, H.Y, H.Width, H.Height), Modern.Text, TextFormatFlags.NoPadding);
+            X += TW + Modern.Px(8);
+
+            Modern.Text_(G, $"{Count}", Modern.Font(8.5f), new Rectangle(X, H.Y, Modern.Px(60), H.Height), Modern.Sub, TextFormatFlags.NoPadding);
+
+            using (var P = new Pen(Modern.Line))
+                G.DrawLine(P, H.X, H.Bottom - 1, H.Right, H.Bottom - 1);
+        }
+
+        /// <summary>
+        /// Copy of the current section header that stays at the top of the list while its cards scroll underneath.
+        /// It is a separate control above the grid (same parent): scrolling moves the grid's pixels, a header painted
+        /// inside the grid would be dragged along for a moment. Mouse input passes through to the grid.
+        /// </summary>
+        public sealed class PinnedHeader : Control
+        {
+            private readonly AccountGrid Owner;
+            internal string Section;
+            internal int Count;
+
+            internal PinnedHeader(AccountGrid Owner)
+            {
+                this.Owner = Owner;
+                SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
+                SetStyle(ControlStyles.Selectable, false);
+                BackColor = Modern.Bg;
+                Tag = "NoScaling";
+                Visible = false;
+            }
+
+            protected override void WndProc(ref Message m)
+            {
+                if (m.Msg == 0x84) { m.Result = (IntPtr)(-1); return; } // WM_NCHITTEST → HTTRANSPARENT: clicks go to the grid underneath
+
+                base.WndProc(ref m);
+            }
+
+            protected override void OnMouseWheel(MouseEventArgs e) => Owner.OnMouseWheel(e);
+
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                Modern.Prepare(e.Graphics);
+                e.Graphics.Clear(Owner.BackColor);
+
+                // bottom aligned: when the next section pushes this one out, the control gets shorter and the header slides up
+                if (Section != null) Owner.PaintHeader(e.Graphics, Section, Count, new Rectangle(0, Height - Owner.HeaderH, Width, Owner.HeaderH));
+            }
+        }
+
+        /// <summary>The pinned header control. The owner adds it to the grid's parent, above the grid.</summary>
+        public readonly PinnedHeader Pinned;
+
+        private Rectangle PinnedR;   // area of the grid covered by the pinned header (client coordinates)
+        private int LayoutW;
+
+        /// <summary>Finds the section that is scrolled past the top and places the pinned header over it.</summary>
+        private void UpdatePinned()
+        {
+            if (Pinned == null || Pinned.Parent == null || Pinned.Parent != Parent) return;
+
+            Entry Current = null;
+            int NextTop = int.MaxValue;
+
+            if (Sections && Visible)
+                foreach (var E in Entries)
+                {
+                    if (E.Section == null) continue;
+
+                    int Top = E.Header.Y + AutoScrollPosition.Y;
+
+                    if (Top < 0) Current = E;
+                    else { NextTop = Top; break; }
+                }
+
+            int H = Current == null ? 0 : Math.Min(HeaderH, NextTop);
+
+            if (H <= 0)
+            {
+                PinnedR = Rectangle.Empty;
+                if (Pinned.Visible) Pinned.Visible = false;
+                return;
+            }
+
+            PinnedR = new Rectangle(0, 0, LayoutW, H);
+
+            var Target = new Rectangle(Left, Top, LayoutW, H);
+            bool Changed = Pinned.Section != Current.Section || Pinned.Count != Current.Count;
+
+            Pinned.Section = Current.Section;
+            Pinned.Count = Current.Count;
+
+            if (Pinned.Bounds != Target) { Pinned.Bounds = Target; Changed = true; }
+            if (!Pinned.Visible) { Pinned.Visible = true; Pinned.BringToFront(); Changed = true; }
+            if (Changed) Pinned.Invalidate();
+        }
+
+        protected override void OnInvalidated(InvalidateEventArgs e)
+        {
+            base.OnInvalidated(e);
+
+            // group pictures arrive later, names change: the pinned copy follows every repaint of the list
+            if (Pinned != null && Pinned.Visible) Pinned.Invalidate();
+        }
+
+        protected override void OnVisibleChanged(EventArgs e) { base.OnVisibleChanged(e); UpdatePinned(); }
+        protected override void OnLocationChanged(EventArgs e) { base.OnLocationChanged(e); UpdatePinned(); }
 
         private void DrawCard(Graphics G, Account A, Rectangle R, bool Sel, bool Hover)
         {
@@ -485,6 +590,9 @@ namespace RBX_Alt_Manager.Classes
 
         private (Account Account, int Button) HitTest(Point P)
         {
+            // under the pinned header nothing is clickable (the cards there are hidden)
+            if (!PinnedR.IsEmpty && PinnedR.Contains(P)) return (null, 0);
+
             foreach (var E in Entries)
             {
                 var R = Shift(E.Card);
@@ -692,12 +800,14 @@ namespace RBX_Alt_Manager.Classes
         protected override void OnScroll(ScrollEventArgs se)
         {
             base.OnScroll(se);
+            UpdatePinned();
             Invalidate();
         }
 
         protected override void OnMouseWheel(MouseEventArgs e)
         {
             base.OnMouseWheel(e);
+            UpdatePinned();
             Invalidate();
         }
 
@@ -710,9 +820,13 @@ namespace RBX_Alt_Manager.Classes
 
             var R = Shift(E.Card);
 
-            if (R.Top < 0 || R.Bottom > ClientSize.Height)
-                AutoScrollPosition = new Point(0, Math.Max(0, E.Card.Y - Pad - (E.Section != null ? HeaderH : 0)));
+            // with sections the pinned header covers the top of the list, a card under it does not count as visible
+            int Covered = Sections ? HeaderH : 0;
 
+            if (R.Top < Covered || R.Bottom > ClientSize.Height)
+                AutoScrollPosition = new Point(0, Math.Max(0, E.Card.Y - Pad - Covered));
+
+            UpdatePinned();
             Invalidate();
         }
     }

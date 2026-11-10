@@ -509,6 +509,8 @@ namespace RBX_Alt_Manager
             Grid.ContextRequested = (A, P) => AccountsStrip.Show(Grid, P);
             Grid.SectionTitle = GroupTitleOf;
             ListFrame.Controls.Add(Grid);
+            ListFrame.Controls.Add(Grid.Pinned);   // current group header stays at the top while scrolling
+            Grid.Pinned.BringToFront();
 
             // empty group (created without accounts): explain it and offer "Add account" right here
             EmptyGroupPanel = new Panel() { Dock = DockStyle.Fill, BackColor = Modern.Bg, Visible = false, Tag = "NoScaling" };
@@ -1148,14 +1150,25 @@ namespace RBX_Alt_Manager
 
             GroupTitleLabel.Text = GroupTitleOf(ActiveGroupKey);
 
-            var Parts = new List<string> { InGroup.Count == 1 ? "1 account" : $"{InGroup.Count} accounts" };
+            var Parts = new List<string>();
 
-            if (Banned > 0) Parts.Add($"{Banned} banned");
-            if (NeedLogin > 0) Parts.Add($"{NeedLogin} logged out");
+            if (ActiveGroupKey == null)
+            {
+                // "All accounts": the totals already stand in the top left corner, so this line says how many groups there are instead of repeating them
+                int Groups = AccountsList.Select(a => a.Group).Concat(SavedGroups.All).Distinct(StringComparer.OrdinalIgnoreCase).Count();
+                Parts.Add(Groups == 1 ? "1 group" : $"{Groups} groups");
+            }
+            else
+            {
+                Parts.Add(InGroup.Count == 1 ? "1 account" : $"{InGroup.Count} accounts");
+
+                if (Banned > 0) Parts.Add($"{Banned} banned");
+                if (NeedLogin > 0) Parts.Add($"{NeedLogin} logged out");
+            }
             if (SearchBox.Text.Trim().Length > 0) Parts.Add($"{AccountsView.GetItemCount()} match \"{SearchBox.Text.Trim()}\"");
 
             GroupSubLabel.Text = string.Join("  ·  ", Parts);
-            GroupSubLabel.Color = Banned > 0 ? Modern.Danger : Modern.Sub;
+            GroupSubLabel.Color = Banned > 0 && ActiveGroupKey != null ? Modern.Danger : Modern.Sub;
             GroupSubLabel.Invalidate();
 
             UpdateLoginGroupButton();
