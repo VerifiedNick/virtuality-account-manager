@@ -517,22 +517,26 @@ namespace RBX_Alt_Manager
             var EmptyTitle = new ModernLabel() { Points = 13f, Bold = true, Center = true };
             var EmptySub = new ModernLabel() { Text = "Add a new account here – it goes straight into this group.\nOr move existing accounts: select them, right click → Move to group.", Points = 9.5f, Color = Modern.Sub, Center = true, Wrap = true };
             var EmptyAdd = new ModernButton() { Text = "Add account", Icon = IconKind.Plus, Style = ModernButtonStyle.Primary, TextPoints = 10f };
+            var EmptyPicture = new ModernButton() { Text = "Choose picture…", TextPoints = 10f };
             var EmptyDelete = new ModernButton() { Text = "Delete this empty group", Style = ModernButtonStyle.Ghost, Bold = false };
 
             EmptyAdd.Click += (s, e) => ShowAddAccountDialog();
+            EmptyPicture.Click += (s, e) => { if (ActiveGroupKey != null) AskGroupPicture(ActiveGroupKey, EmptyPicture); };
             EmptyDelete.Click += (s, e) => { if (ActiveGroupKey != null) DeleteEmptyGroup(ActiveGroupKey); };
+            SaveTooltip.SetToolTip(EmptyPicture, "Picture of this group in the side bar. Later: right click the group in the side bar.");
 
-            EmptyGroupPanel.Controls.AddRange(new Control[] { EmptyTitle, EmptySub, EmptyAdd, EmptyDelete });
+            EmptyGroupPanel.Controls.AddRange(new Control[] { EmptyTitle, EmptySub, EmptyAdd, EmptyPicture, EmptyDelete });
             EmptyGroupPanel.Layout += (s, e) =>
             {
                 EmptyTitle.Text = ActiveGroupKey != null ? $"{GroupTitleOf(ActiveGroupKey)} has no accounts yet" : string.Empty;
 
                 int W = Math.Min(EmptyGroupPanel.Width - Modern.Gutter * 2, Px(460)), X = (EmptyGroupPanel.Width - W) / 2;
-                int Y = Math.Max(Modern.Gutter, EmptyGroupPanel.Height / 2 - Px(110));
+                int Y = Math.Max(Modern.Gutter, EmptyGroupPanel.Height / 2 - Px(135));
 
                 EmptyTitle.SetBounds(X, Y, W, Px(30)); Y += Px(30) + Px(8);
                 EmptySub.SetBounds(X, Y, W, Px(44)); Y += Px(44) + Px(20);
                 EmptyAdd.SetBounds(X + (W - Px(220)) / 2, Y, Px(220), Px(44)); Y += Px(44) + Px(10);
+                EmptyPicture.SetBounds(X + (W - Px(220)) / 2, Y, Px(220), Px(40)); Y += Px(40) + Px(10);
                 EmptyDelete.SetBounds(X + (W - Px(220)) / 2, Y, Px(220), Px(34));
             };
             ListFrame.Controls.Add(EmptyGroupPanel);
@@ -980,15 +984,20 @@ namespace RBX_Alt_Manager
             UpdateGroupSidebar();
         }
 
-        private void AskGroupPicture(string Key)
+        /// <summary>Menu with the ways to give a group its picture. Opens under Anchor (default: the "New group" button).</summary>
+        private void AskGroupPicture(string Key, Control Anchor = null)
         {
+            Anchor = Anchor ?? NewGroupButton;
+
             var Menu = new ContextMenuStrip();
             Menu.Items.Add($"Choose a {Vocabulary.Rank} as picture…", null, (s, e) => ChooseGroupPicture(Key, GroupTitleOf(Key)));
             Menu.Items.Add("Choose an image file…", null, (s, e) => ChooseGroupPictureFile(Key));
-            Menu.Items.Add("Automatic (from the group name)", null, (s, e) => { });
+            Menu.Items.Add("Automatic (from the group name)", null, (s, e) => { if (GroupImages.GetOverride(Key) != null) GroupImages.SetOverride(Key, null); });
             ModernSkin.StyleMenu(Menu);
             Menu.Closed += (s, e) => BeginInvoke((MethodInvoker)Menu.Dispose);
-            Menu.Show(NewGroupButton, new Point(0, NewGroupButton.Height));
+
+            // opened one message later: a menu shown straight out of a click or a closing dialog can close again at once
+            BeginInvoke((MethodInvoker)(() => { if (!Anchor.IsDisposed) Menu.Show(Anchor, new Point(0, Anchor.Height)); }));
         }
 
         private void ChooseGroupPictureFile(string Key)
